@@ -1,0 +1,248 @@
+import OpenAI from 'openai';
+import { getDb } from '../db/index.js';
+import { DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL, LLM_TIMEOUT_MS } from './config.js';
+import { getState, saveState, mergeState } from './state.js';
+import { readFileSync, existsSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import type { LlmMessage } from '../db/schema.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+const openai = new OpenAI({
+  apiKey: DEEPSEEK_API_KEY,
+  baseURL: DEEPSEEK_BASE_URL,
+  timeout: LLM_TIMEOUT_MS,
+});
+
+interface LlmResponse { text?: string; ui?: string; state?: Record<string, unknown>; }
+
+type Broadcaster = (type: string, data: unknown) => void;
+
+const activeRequests = new Map<string, AbortController>();
+
+export function stopGeneration(chatId: string): void {
+  const ctrl = activeRequests.get(chatId);
+  if (ctrl) { ctrl.abort(); activeRequests.delete(chatId); }
+}
+
+export function isProcessing(chatId: string): boolean {
+  return activeRequests.has(chatId);
+}
+
+function getSystemPrompt(): string {
+  const promptPath = resolve(__dirname, '..', '..', 'baby-diary-prompt.md');
+  if (existsSync(promptPath)) { return readFileSync(promptPath, 'utf-8'); }
+  return 'You are a helpful assistant for a baby diary app.';
+}
+
+function buildMessageHistory(chatId: string): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
+  const db = getDb();
+  const messages = db.prepare(
+    "SELECT role, content FROM (SELECT role, content, created_at FROM llm_messages WHERE chat_id = ? ORDER BY created_at DESC LIMIT ?) ORDER BY created_at ASC"
+  ).all(chatId, 40) as Pick<LlmMessage, 'role' | 'content'>[];
+
+  // Append current persistent state so the LLM knows what is filled and what is missing
+  let systemPrompt = getSystemPrompt();
+  try {
+    const state = getState(chatId);
+    systemPrompt += '\n\n# ТЕКУЩЕЕ СОСТОЯНИЕ ДНЕВНИКА (JSON)\n' + JSON.stringify(state, null, 1) +
+      '\n\nЕсли какие-то разделы пустые или незаполненные — предложи их заполнить. Все новые данные передавай в state.';
+  } catch { /* state unavailable */ }
+
+  const history: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+    { role: 'system', content: systemPrompt },
+  ];
+  for (const msg of messages) {
+    history.push({
+      role: msg.role === 'agent' ? 'assistant' : (msg.role as 'system' | 'user'),
+      content: msg.content,
+    });
+  }
+  return history;
+}
+
+export function parseLlmResponse(raw: string): LlmResponse | null {
+  let text = raw.trim();
+  text = text.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+
+  try { return JSON.parse(text) as LlmResponse; } catch { /* continue */ }
+
+  const startIdx = text.indexOf('{');
+  if (startIdx !== -1) {
+    let endIdx = -1;
+    let depth = 0, inString = false, escaped = false;
+    for (let i = startIdx; i < text.length; i++) {
+      const ch = text[i];
+      if (escaped) { escaped = false; continue; }
+      if (ch === '\\') { escaped = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (!inString) {
+        if (ch === '{') depth++;
+        else if (ch === '}') { depth--; if (depth === 0) { endIdx = i; break; } }
+      }
+    }
+    if (endIdx !== -1) {
+      let sanitized = '';
+      inString = false; escaped = false;
+      for (let i = startIdx; i <= endIdx; i++) {
+        const ch = text[i];
+        if (escaped) { sanitized += ch; escaped = false; continue; }
+        if (ch === '\\') { sanitized += ch; escaped = true; continue; }
+        if (ch === '"') { sanitized += ch; inString = !inString; continue; }
+        if (inString && ch === '\n') { sanitized += '\\n'; continue; }
+        if (inString && ch === '\r') { sanitized += '\\r'; continue; }
+        if (inString && ch === '\t') { sanitized += '\\t'; continue; }
+        sanitized += ch;
+      }
+      try { return JSON.parse(sanitized) as LlmResponse; } catch { /* fall through */ }
+    }
+  }
+
+  const textMatch = text.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  if (!textMatch) return null;
+
+  const result: LlmResponse = { text: JSON.parse(`"${textMatch[1]}"`) as string };
+  const uiKeyIdx = text.indexOf('"ui"');
+  if (uiKeyIdx !== -1) {
+    const colonIdx = text.indexOf(':', uiKeyIdx);
+    if (colonIdx !== -1) {
+      const valStart = text.indexOf('"', colonIdx);
+      if (valStart !== -1) {
+        const scriptEnd = text.lastIndexOf('</script>');
+        if (scriptEnd > valStart) {
+          const afterScript = text.indexOf('"', scriptEnd + 9);
+          if (afterScript !== -1) {
+            try { result.ui = JSON.parse('"' + text.substring(valStart + 1, afterScript).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t') + '"') as string; } catch { /* ignore */ }
+          }
+        }
+        if (!result.ui) {
+          let uiVal = '';
+          let esc = false;
+          for (let i = valStart + 1; i < text.length; i++) {
+            const ch = text[i];
+            if (esc) { uiVal += ch; esc = false; continue; }
+            if (ch === '\\') { uiVal += ch; esc = true; continue; }
+            if (ch === '"') break;
+            uiVal += ch;
+          }
+          try { result.ui = JSON.parse(`"${uiVal.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t')}"`) as string; } catch { /* ignore */ }
+        }
+      }
+    }
+  }
+  return result;
+}
+
+export async function handlePrompt(chatId: string, prompt: string, modelName: string | undefined, emit: Broadcaster): Promise<void> {
+  const db = getDb();
+  if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) { emit('done', null); return; }
+
+  db.prepare('INSERT INTO llm_messages (chat_id, role, content) VALUES (?, ?, ?)').run(chatId, 'user', prompt);
+  updateChatTitle(chatId, prompt);
+  emit('user-bubble', `<div class="message message-user">${escapeHtml(prompt)}</div>`);
+  db.prepare('UPDATE chats SET thinking = 1 WHERE id = ?').run(chatId);
+
+  const aborter = new AbortController();
+  activeRequests.set(chatId, aborter);
+  emit('thinking', true);
+
+  let fullResponse = '';
+  try {
+    const messages = buildMessageHistory(chatId);
+    messages.push({ role: 'user', content: prompt });
+
+    const stream = await openai.chat.completions.create(
+      { model: modelName || DEEPSEEK_MODEL, messages, stream: true },
+      { signal: aborter.signal },
+    );
+
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content;
+      if (delta) { fullResponse += delta; }
+    }
+
+    db.prepare('INSERT INTO llm_logs (chat_id, request, response) VALUES (?, ?, ?)').run(chatId, JSON.stringify(messages), fullResponse);
+
+    let parsed = parseLlmResponse(fullResponse);
+
+    // Retry once if LLM returned non-JSON prose but user provided baby info
+    if ((!parsed || !parsed.text) && !aborter.signal.aborted && fullResponse.trim().length > 0) {
+      const retryMsgs = buildMessageHistory(chatId);
+      retryMsgs.push(
+        { role: 'assistant', content: fullResponse.trim() },
+        { role: 'user', content: 'Ты ответила обычным текстом, но данные не сохранились. Верни ответ ТОЛЬКО в формате JSON: {"text":"что сказать","state":{...данные которые нужно сохранить...}}. Если данных для state нет — верни {"text":"...","state":{}}.' },
+      );
+      const retryStream = await openai.chat.completions.create(
+        { model: modelName || DEEPSEEK_MODEL, messages: retryMsgs, stream: true },
+        { signal: aborter.signal },
+      );
+      let retryResp = '';
+      for await (const chunk of retryStream) {
+        const delta = chunk.choices[0]?.delta?.content;
+        if (delta) retryResp += delta;
+      }
+      db.prepare('INSERT INTO llm_logs (chat_id, request, response) VALUES (?, ?, ?)').run(chatId, JSON.stringify(retryMsgs), retryResp);
+      const retried = parseLlmResponse(retryResp);
+      if (retried && retried.text) parsed = retried;
+      else fullResponse = retryResp; // use retry text as fallback
+    }
+
+    if (!parsed || !parsed.text) {
+      const text = fullResponse.trim() || 'No response generated.';
+      db.prepare('INSERT INTO llm_messages (chat_id, role, content) VALUES (?, ?, ?)').run(chatId, 'agent', text);
+      emit('update', `<div class="message message-agent">${escapeHtml(text)}</div>`);
+      emit('done', null);
+      return;
+    }
+
+    const text = parsed.text;
+    const ui = parsed.ui || null;
+    const state = parsed.state || null;
+
+    db.prepare('INSERT INTO llm_messages (chat_id, role, content, ui) VALUES (?, ?, ?, ?)').run(chatId, 'agent', text, ui);
+
+    emit('update', `<div class="message message-agent">${escapeHtml(text)}</div>`);
+
+    // Save structured state to DB (persistent app data), then broadcast to clients
+    if (state) {
+      const merged = mergeState(getState(chatId), state);
+      saveState(chatId, merged);
+      emit('state', merged);
+    }
+    emit('done', null);
+  } catch (err) {
+    try {
+      const messages = buildMessageHistory(chatId);
+      messages.push({ role: 'user', content: prompt });
+      db.prepare('INSERT INTO llm_logs (chat_id, request, response) VALUES (?, ?, ?)').run(chatId, JSON.stringify(messages), fullResponse || String(err));
+    } catch { /* non-critical */ }
+    if (aborter.signal.aborted) {
+      const partial = fullResponse.trim();
+      if (partial) {
+        db.prepare('INSERT INTO llm_messages (chat_id, role, content) VALUES (?, ?, ?)').run(chatId, 'agent', partial);
+        emit('update', `<div class="message message-agent">${escapeHtml(partial)}</div>`);
+      }
+      emit('done', null);
+    } else {
+      console.error('LLM error:', err);
+      emit('fallback', null);
+    }
+  } finally {
+    activeRequests.delete(chatId);
+    db.prepare('UPDATE chats SET thinking = 0 WHERE id = ?').run(chatId);
+  }
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function updateChatTitle(chatId: string, userPrompt: string): void {
+  const db = getDb();
+  const { count } = db.prepare('SELECT COUNT(*) as count FROM llm_messages WHERE chat_id = ? AND role IN (?, ?)').get(chatId, 'user', 'agent') as { count: number };
+  if (count <= 2) {
+    const title = userPrompt.slice(0, 60) + (userPrompt.length > 60 ? '...' : '');
+    db.prepare('UPDATE chats SET title = ? WHERE id = ? AND title = ?').run(title, chatId, 'New Chat');
+  }
+}
