@@ -5,7 +5,7 @@ import { getDb, closeDb } from '../db/index.js';
 import { PORT } from './config.js';
 import { setupWebSocket, broadcast, setReplayHandler } from './ws.js';
 import { handlePrompt, stopGeneration, isProcessing } from './llm.js';
-import { getState, saveState, mergeState } from './state.js';
+import { getState, saveState, mergeState, sanitizeStateEvents } from './state.js';
 import { v4 as uuid } from 'uuid';
 import type { LlmMessage, ChatPreview } from '../db/schema.js';
 import { readFileSync, existsSync } from 'fs';
@@ -24,8 +24,14 @@ setupWebSocket(wss);
 setReplayHandler((chatId: string, path: string) => {
   const db = getDb();
   if (path === '/body') {
-    const rows = db.prepare('SELECT id, role, content FROM llm_messages WHERE chat_id = ? ORDER BY created_at ASC').all(chatId) as Pick<LlmMessage, 'id' | 'role' | 'content'>[];
-    return rows.map((r) => `<div class="message message-${r.role}">${escapeHtml(r.content)}</div>`).join('\n');
+    const rows = db.prepare('SELECT id, role, content, choices FROM llm_messages WHERE chat_id = ? ORDER BY created_at ASC').all(chatId) as Pick<LlmMessage, 'id' | 'role' | 'content' | 'choices'>[];
+    return rows.map((r) => {
+      let attr = '';
+      if (r.choices) {
+        try { const p = JSON.parse(r.choices); if (Array.isArray(p) && p.length) attr = ' data-choices="' + escapeAttr(JSON.stringify(p.map(String))) + '"'; } catch { /* ignore */ }
+      }
+      return `<div class="message message-${r.role}"${attr}>${escapeHtml(r.content)}</div>`;
+    }).join('\n');
   }
   return null;
 });
@@ -42,8 +48,14 @@ function indexHtml() {
 
 function appHtml(chatId: string) {
   const db = getDb();
-  const rows = db.prepare('SELECT id, role, content FROM llm_messages WHERE chat_id = ? ORDER BY created_at ASC').all(chatId) as Pick<LlmMessage, 'id' | 'role' | 'content'>[];
-  const messages = rows.map((r) => ({ id: String(r.id), role: r.role, text: r.content, timestamp: 0 }));
+  const rows = db.prepare('SELECT id, role, content, choices FROM llm_messages WHERE chat_id = ? ORDER BY created_at ASC').all(chatId) as Pick<LlmMessage, 'id' | 'role' | 'content' | 'choices'>[];
+  const messages = rows.map((r) => {
+    let choices: string[] | undefined;
+    if (r.choices) {
+      try { const p = JSON.parse(r.choices); if (Array.isArray(p)) choices = p.map(String); } catch { /* ignore */ }
+    }
+    return { id: String(r.id), role: r.role, text: r.content, timestamp: 0, ...(choices && choices.length ? { choices } : {}) };
+  });
   const chat = db.prepare('SELECT thinking FROM chats WHERE id = ?').get(chatId) as { thinking: number } | undefined;
   const thinking = chat?.thinking === 1;
 
@@ -105,10 +117,10 @@ app.post('/chat/:id/prompt', (req, res) => {
       case 'update': broadcast(chatId, '/body', data as string); break;
       case 'state': broadcast(chatId, '/chat/state', JSON.stringify({ path: '/chat/state', type: 'state', state: data })); break;
       case 'done': broadcast(chatId, '/chat/stream', JSON.stringify({ path: '/chat/stream', type: 'done' })); break;
-      case 'fallback': broadcast(chatId, '/body', '<div class="message message-agent">Something went wrong. Try again.</div>'); broadcast(chatId, '/chat/stream', JSON.stringify({ path: '/chat/stream', type: 'done' })); break;
+      case 'fallback': broadcast(chatId, '/body', '<div class="message message-agent">Что-то пошло не так. Попробуйте ещё раз.</div>'); broadcast(chatId, '/chat/stream', JSON.stringify({ path: '/chat/stream', type: 'done' })); break;
     }
   }).catch(() => {
-    broadcast(chatId, '/body', '<div class="message message-agent">Something went wrong. Try again.</div>');
+    broadcast(chatId, '/body', '<div class="message message-agent">Что-то пошло не так. Попробуйте ещё раз.</div>');
     broadcast(chatId, '/chat/stream', JSON.stringify({ path: '/chat/stream', type: 'done' }));
   });
 });
@@ -149,14 +161,26 @@ app.post('/chat/:id/snapshot', (req, res) => {
   db.transaction(() => {
     db.prepare('INSERT INTO chats (id, title) SELECT ?, title FROM chats WHERE id = ?').run(newChatId, chatId);
     db.prepare('INSERT INTO clients (client_id, secret, chat_id) VALUES (?, ?, ?)').run(newClientId, newSecret, newChatId);
-    db.prepare('INSERT INTO llm_messages (chat_id, role, content, ui, patch, created_at) SELECT ?, role, content, ui, patch, created_at FROM llm_messages WHERE chat_id = ?').run(newChatId, chatId);
+    db.prepare('INSERT INTO llm_messages (chat_id, role, content, ui, patch, choices, created_at) SELECT ?, role, content, ui, patch, choices, created_at FROM llm_messages WHERE chat_id = ?').run(newChatId, chatId);
   })();
   res.json({ id: newChatId, clientId: newClientId, clientSecret: newSecret });
+});
+
+app.delete('/api/chats/:id', (req, res) => {
+  const db = getDb();
+  const { clientId, clientSecret } = req.body;
+  const chatId = req.params.id;
+  if (!db.prepare('SELECT * FROM clients WHERE client_id = ? AND secret = ? AND chat_id = ?').get(clientId, clientSecret, chatId)) return res.status(401).json({ error: 'Invalid credentials' });
+  stopGeneration(chatId);
+  db.prepare('DELETE FROM chats WHERE id = ?').run(chatId);
+  res.json({ status: 'deleted' });
 });
 
 // ─── API: Baby state (persistent app data) ──────────────────
 
 app.get('/api/chat/:id/state', (req, res) => {
+  // Открытый доступ осознанно: страница чата и так содержит все сообщения,
+  // приложение однопользовательское (localhost). Защищено только удаление.
   res.json(getState(req.params.id));
 });
 
@@ -166,7 +190,7 @@ app.post('/api/chat/:id/state', (req, res) => {
   const db = getDb();
   if (!db.prepare('SELECT * FROM clients WHERE client_id = ? AND secret = ? AND chat_id = ?').get(clientId, clientSecret, chatId)) return res.status(401).json({ error: 'Invalid credentials' });
   if (!state || typeof state !== 'object' || Array.isArray(state)) return res.status(400).json({ error: 'State must be an object' });
-  const merged = mergeState(getState(chatId), state);
+  const merged = mergeState(getState(chatId), sanitizeStateEvents(state));
   saveState(chatId, merged);
   res.json(merged);
 });
@@ -186,4 +210,8 @@ function shutdown() {
 
 function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function escapeAttr(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }

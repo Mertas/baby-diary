@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { getDb } from '../db/index.js';
 import { DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL, LLM_TIMEOUT_MS } from './config.js';
-import { getState, saveState, mergeState } from './state.js';
+import { getState, saveState, mergeState, sanitizeStateEvents } from './state.js';
 import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -15,7 +15,7 @@ const openai = new OpenAI({
   timeout: LLM_TIMEOUT_MS,
 });
 
-interface LlmResponse { text?: string; ui?: string; state?: Record<string, unknown>; }
+interface LlmResponse { text?: string; ui?: string; state?: Record<string, unknown>; choices?: string[]; }
 
 type Broadcaster = (type: string, data: unknown) => void;
 
@@ -50,6 +50,11 @@ function buildMessageHistory(chatId: string): Array<{ role: 'system' | 'user' | 
       '\n\nЕсли какие-то разделы пустые или незаполненные — предложи их заполнить. Все новые данные передавай в state.';
   } catch { /* state unavailable */ }
 
+  // Текущая дата — чтобы возраст ребёнка считался от реального «сегодня», а не от выдуманного
+  const now = new Date();
+  const weekday = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'][now.getDay()];
+  systemPrompt += '\n\n# ТЕКУЩАЯ ДАТА\nСегодня ' + now.toISOString().slice(0, 10) + ' (' + weekday + '). Возраст ребёнка всегда вычисляй от birthDate относительно этой даты. Не угадывай текущую дату — она указана здесь.';
+
   const history: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
     { role: 'system', content: systemPrompt },
   ];
@@ -66,7 +71,11 @@ export function parseLlmResponse(raw: string): LlmResponse | null {
   let text = raw.trim();
   text = text.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
 
-  try { return JSON.parse(text) as LlmResponse; } catch { /* continue */ }
+  try {
+    const p = JSON.parse(text) as LlmResponse;
+    if (p && Array.isArray(p.choices)) p.choices = p.choices.map(String).slice(0, 6);
+    return p;
+  } catch { /* continue */ }
 
   const startIdx = text.indexOf('{');
   if (startIdx !== -1) {
@@ -95,7 +104,11 @@ export function parseLlmResponse(raw: string): LlmResponse | null {
         if (inString && ch === '\t') { sanitized += '\\t'; continue; }
         sanitized += ch;
       }
-      try { return JSON.parse(sanitized) as LlmResponse; } catch { /* fall through */ }
+      try {
+        const p = JSON.parse(sanitized) as LlmResponse;
+        if (p && Array.isArray(p.choices)) p.choices = p.choices.map(String).slice(0, 6);
+        return p;
+      } catch { /* fall through */ }
     }
   }
 
@@ -171,7 +184,7 @@ export async function handlePrompt(chatId: string, prompt: string, modelName: st
       const retryMsgs = buildMessageHistory(chatId);
       retryMsgs.push(
         { role: 'assistant', content: fullResponse.trim() },
-        { role: 'user', content: 'Ты ответила обычным текстом, но данные не сохранились. Верни ответ ТОЛЬКО в формате JSON: {"text":"что сказать","state":{...данные которые нужно сохранить...}}. Если данных для state нет — верни {"text":"...","state":{}}.' },
+        { role: 'user', content: 'Ты ответила обычным текстом, но данные не сохранились. Верни ответ ТОЛЬКО в формате JSON: {"text":"что сказать","state":{...данные которые нужно сохранить...}}. Если данных для state нет — верни {"text":"...","state":{}}. Схема state — строго как в системном промпте: кормления в feeds (amount числом), сны в sleeps, остальное в events; время — текстом в time/start/end.' },
       );
       const retryStream = await openai.chat.completions.create(
         { model: modelName || DEEPSEEK_MODEL, messages: retryMsgs, stream: true },
@@ -199,14 +212,16 @@ export async function handlePrompt(chatId: string, prompt: string, modelName: st
     const text = parsed.text;
     const ui = parsed.ui || null;
     const state = parsed.state || null;
+    const choices = Array.isArray(parsed.choices) && parsed.choices.length ? parsed.choices.map(String) : null;
 
-    db.prepare('INSERT INTO llm_messages (chat_id, role, content, ui) VALUES (?, ?, ?, ?)').run(chatId, 'agent', text, ui);
+    db.prepare('INSERT INTO llm_messages (chat_id, role, content, ui, choices) VALUES (?, ?, ?, ?, ?)').run(chatId, 'agent', text, ui, choices ? JSON.stringify(choices) : null);
 
-    emit('update', `<div class="message message-agent">${escapeHtml(text)}</div>`);
+    const choicesAttr = choices ? ` data-choices="${escapeAttr(JSON.stringify(choices))}"` : '';
+    emit('update', `<div class="message message-agent"${choicesAttr}>${escapeHtml(text)}</div>`);
 
     // Save structured state to DB (persistent app data), then broadcast to clients
     if (state) {
-      const merged = mergeState(getState(chatId), state);
+      const merged = mergeState(getState(chatId), sanitizeStateEvents(state));
       saveState(chatId, merged);
       emit('state', merged);
     }
@@ -236,6 +251,10 @@ export async function handlePrompt(chatId: string, prompt: string, modelName: st
 
 function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function escapeAttr(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function updateChatTitle(chatId: string, userPrompt: string): void {

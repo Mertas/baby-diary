@@ -20,8 +20,10 @@ interface ChatPreview {
       header h1 { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: 22px; margin: 0; }
       #new-chat { background: none; border: none; border-bottom: 1px solid #e8622a; color: #e8622a; cursor: pointer; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 0; font-family: inherit; }
       #chat-list { max-width: 560px; margin: 0 auto; padding: 12px 20px; }
-      .chat-card { display: block; padding: 16px 4px; margin-bottom: 4px; border-bottom: 1px solid #e3ddd3; text-decoration: none; color: #211d18; transition: background .2s; border-radius: 2px; }
+      .chat-card { display: block; padding: 16px 4px; margin-bottom: 4px; border-bottom: 1px solid #e3ddd3; text-decoration: none; color: #211d18; transition: background .2s; border-radius: 2px; position: relative; padding-right: 44px; }
       .chat-card:hover { background: #f2ede4; }
+      .chat-del { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: 1px solid #e3ddd3; color: #a39a8d; cursor: pointer; width: 26px; height: 26px; border-radius: 2px; font-size: 11px; line-height: 1; transition: all .2s; }
+      .chat-del:hover { color: #c0392b; border-color: #c0392b; }
       .chat-title { font-weight: 500; margin-bottom: 3px; font-size: 15px; }
       .chat-preview { font-size: 13px; color: #7a7268; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .chat-meta { display: flex; gap: 16px; margin-top: 6px; font-size: 11px; color: #a39a8d; letter-spacing: 0.04em; }
@@ -43,6 +45,7 @@ interface ChatPreview {
       const card = document.createElement('a');
       card.className = 'chat-card';
       card.href = `/chat/${c.id}`;
+      const hasCreds = !!(localStorage.getItem(`pui2_clientId_${c.id}`) && localStorage.getItem(`pui2_secret_${c.id}`));
       card.innerHTML = `
         <div class="chat-title">${esc(c.title)}</div>
         <div class="chat-preview">${esc(c.lastMessage ?? 'Пустой дневник')}</div>
@@ -50,7 +53,20 @@ interface ChatPreview {
           <span>${c.messageCount} сообщений</span>
           <span>${ago(c.updatedAt)}</span>
         </div>
+        ${hasCreds ? `<button class="chat-del" title="Удалить дневник">✕</button>` : ''}
       `;
+      if (hasCreds) {
+        card.querySelector('.chat-del')!.addEventListener('click', async (e) => {
+          e.preventDefault(); e.stopPropagation();
+          if (!confirm(`Удалить дневник «${c.title}»? Это действие необратимо.`)) return;
+          await fetch(`/api/chats/${c.id}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clientId: localStorage.getItem(`pui2_clientId_${c.id}`), clientSecret: localStorage.getItem(`pui2_secret_${c.id}`) }),
+          });
+          card.remove();
+        });
+      }
       list.appendChild(card);
     }
   }

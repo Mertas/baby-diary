@@ -5,6 +5,7 @@ interface PromptUIMessage {
   role: 'user' | 'agent' | 'system';
   text: string;
   timestamp: number;
+  choices?: string[];
 }
 
 interface PromptUIMessages {
@@ -60,7 +61,7 @@ declare global {
   interface Window {
     __CHAT_ID__: string;
     __CHAT_THINKING__: boolean;
-    __INITIAL_MESSAGES__: { id: string; role: string; text: string; timestamp: number }[];
+    __INITIAL_MESSAGES__: { id: string; role: string; text: string; timestamp: number; choices?: string[] }[];
     __runtime_subscribe: (path: string, handler: (content: string) => void) => void;
     __messagesAdd: (html: string) => void;
     __messagesRemove: (agentId: number | null, userId: number | null) => void;
@@ -114,11 +115,18 @@ window.__messagesAdd = (html: string): void => {
     const isAgent = msgEl.classList.contains('message-agent');
     const text = msgEl.textContent || '';
 
+    let choices: string[] | undefined;
+    const chRaw = msgEl.getAttribute('data-choices');
+    if (chRaw) {
+      try { const p = JSON.parse(chRaw); if (Array.isArray(p)) choices = p.map(String); } catch { /* ignore */ }
+    }
+
     const msg: PromptUIMessage = {
       id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
       role: isUser ? 'user' : isAgent ? 'agent' : 'system',
       text,
       timestamp: Date.now(),
+      ...(choices && choices.length ? { choices } : {}),
     };
 
     if (_messages.find((m) => m.text === text && m.role === msg.role)) continue;

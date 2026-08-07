@@ -69,6 +69,7 @@ export interface LlmMessage {
   content: string;
   ui: string | null;
   patch: string | null;
+  choices: string | null;
   created_at: number;
 }
 
