@@ -220,12 +220,15 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .htl-lbl { width: 112px; flex-shrink: 0; font-size: 12px; color: var(--text-dim); text-align: right; letter-spacing: 0.02em; }
 .htl-track { position: relative; flex: 1; height: 44px; border-bottom: 1px solid #f2ede4; background: repeating-linear-gradient(90deg, transparent 0, transparent calc(25% - 1px), #f4efe6 calc(25% - 1px), #f4efe6 25%); }
 .htl-ev { position: absolute; top: 50%; cursor: pointer; z-index: 1; }
-.htl-ev.feed { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); transform: translate(-50%, -50%); z-index: 3; }
+.htl-ev.feed { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); transform: translate(-50%, -50%); z-index: 5; }
 .htl-ev.sleep { height: 18px; border-radius: 9px; background: #5b8def; opacity: 0.85; transform: translateY(-50%); }
 .htl-ev.ev { width: 11px; height: 11px; background: #8e6fd8; transform: translate(-50%, -50%) rotate(45deg); z-index: 3; }
-.htl-ev.sleep:hover { z-index: 2; opacity: 1; box-shadow: 0 0 0 2px rgba(91, 141, 239, 0.25); } /* полоса не перекрывает точки */
-.htl-ev.feed:hover, .htl-ev.ev:hover { z-index: 4; transform: translate(-50%, -50%) rotate(0deg) scale(1.3); box-shadow: 0 0 0 3px rgba(232, 98, 42, 0.15); }
-.htl-ev.ev:hover { box-shadow: 0 0 0 3px rgba(142, 111, 216, 0.18); }
+/* Полоса сна НИКОГДА не поднимается выше точек (hover — только подсветка) */
+.htl-ev.sleep:hover { opacity: 1; cursor: pointer; }
+/* Большая зона наведения для точек: невидимый круг 30px */
+.htl-ev.feed::after, .htl-ev.ev::after { content: ''; position: absolute; inset: -8px; border-radius: 50%; }
+.htl-ev.feed:hover { z-index: 6; transform: translate(-50%, -50%) scale(1.3); box-shadow: 0 0 0 3px rgba(232, 98, 42, 0.15); }
+.htl-ev.ev:hover { z-index: 4; transform: translate(-50%, -50%) rotate(0deg) scale(1.3); box-shadow: 0 0 0 3px rgba(142, 111, 216, 0.18); }
 .htl-empty { position: absolute; left: 0; top: 50%; transform: translateY(-50%); font-size: 11px; color: #d9d1c3; }
 .htl-legend { display: flex; gap: 16px; align-items: center; padding: 4px 18px 10px; font-size: 11px; color: var(--text-soft); }
 .htl-legend .lg { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
