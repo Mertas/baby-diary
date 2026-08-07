@@ -1,6 +1,6 @@
 import { getDb } from '../db/index.js';
 
-const ARRAY_KEYS = new Set(['feeds', 'sleeps', 'events', 'tips', 'recipes', 'spurts', 'todos']);
+const ARRAY_KEYS = new Set(['feeds', 'sleeps', 'events', 'tips', 'recipes', 'spurts', 'todos', 'shopping', 'reminders', 'calendar']);
 
 export function getState(chatId: string): Record<string, unknown> {
   const db = getDb();
@@ -33,6 +33,68 @@ function parseTimeHint(hint: unknown, now: number): number {
   return ts;
 }
 
+const RECURRING_MAP: Record<string, string> = {
+  daily: 'daily', 'ежедневно': 'daily', 'каждый день': 'daily', 'ежедневный': 'daily',
+  weekly: 'weekly', 'еженедельно': 'weekly', 'каждую неделю': 'weekly', 'раз в неделю': 'weekly',
+  monthly: 'monthly', 'ежемесячно': 'monthly', 'каждый месяц': 'monthly', 'раз в месяц': 'monthly',
+};
+function calId(title: string, date: string, time: string): string {
+  let h = 0;
+  for (const ch of title + '|' + date + '|' + time) { h = (h * 31 + ch.charCodeAt(0)) >>> 0; }
+  return 'c' + h.toString(36);
+}
+/** Нормализация календаря: {id?, title, date:'YYYY-MM-DD', time:'HH:MM', recurring?, important?, done?}.
+ *  Модель пишет дату строкой (может «завтра»/«сегодня») — приводим к ISO; повторяемость — к enum;
+ *  важное/сделанное — к boolean. Без даты запись остаётся (UI покажет как «без даты»). */
+function sanitizeCalendar(items: unknown): unknown[] {
+  if (!Array.isArray(items)) return [];
+  const seen = new Set<string>();
+  const clean: unknown[] = [];
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const dayShift: Record<string, number> = { 'позавчера': -2, 'вчера': -1, 'сегодня': 0, 'завтра': 1, 'послезавтра': 2 };
+  for (const e of items) {
+    const o = e && typeof e === 'object' ? { ...(e as Record<string, unknown>) } : {};
+    if (o._delete) { clean.push(o); continue; } // маркер удаления — пропускаем в mergeState как есть
+    if (typeof o.title !== 'string' || !o.title.trim()) continue;
+    o.title = o.title.trim();
+    if (typeof o.date === 'string' && o.date.trim()) {
+      const d = o.date.trim().toLowerCase();
+      const iso = d.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (iso) {
+        o.date = `${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}`;
+      } else if (dayShift[d]) {
+        o.date = new Date(today.getTime() + dayShift[d] * 86400000).toISOString().slice(0, 10);
+      }
+      // иначе (день недели, «до конца недели») — оставляем строку, пусть LLM уточнит дату при следующем ходе
+    }
+    if (typeof o.time === 'string') {
+      const tm = o.time.trim().match(/^(\d{1,2}):(\d{2})$/);
+      if (tm) o.time = `${tm[1].padStart(2, '0')}:${tm[2]}`; else delete o.time;
+    }
+    if (typeof o.recurring === 'string') {
+      o.recurring = RECURRING_MAP[o.recurring.trim().toLowerCase()] || null;
+    }
+    if (o.important != null && typeof o.important !== 'boolean') {
+      o.important = /^(да|true|1|важно|обязательно)$/i.test(String(o.important));
+    }
+    if (o.done != null && typeof o.done !== 'boolean') {
+      o.done = /^(да|true|1)$/i.test(String(o.done));
+    }
+    // id: модель копирует его при переносе/правке (см. промпт); для новых событий генерируем.
+    // ВНИМАНИЕ: серверный id зависит от (title|date|time) — перенос без скопированного id
+    // даст новый id и дубль; поэтому промпт требует копировать id при переносе.
+    if (!o.id) o.id = calId(String(o.title), String(o.date || ''), o.time ? String(o.time) : '');
+    if (typeof o.id !== 'string' || !o.id.trim()) o.id = calId(String(o.title), String(o.date || ''), o.time ? String(o.time) : '');
+    // Дедуп по (date|title|time): повторная отправка той же встречи не плодит дубль,
+    // а обновление полей (перенос, important) проходит через merge-поля.
+    const key = `${o.date || '?'}|${o.title}|${o.time || ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    clean.push(o);
+  }
+  return clean;
+}
+
 /** Семантический ключ события для дедупа: время|тип|(объём/название).
  *  note и порядок полей НЕ участвуют — переизданное событие с другим набором полей
  *  (например, с note vs без, из events-роутинга vs прямых feeds) должно схлопываться.
@@ -47,6 +109,7 @@ function eventKey(o: Record<string, unknown>): string {
 export function sanitizeStateEvents(state: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = { ...state };
   const now = Date.now();
+  if ('calendar' in out) out.calendar = sanitizeCalendar(out.calendar);
   // Схема-дрейф: модель иногда пишет ВСЁ в единый `events` с type 'feed'/'sleep'
   // (особенно после retry-промпта без примеров). Разруливаем по массивам ДО нормализации,
   // иначе кормления/сны не попадут в статистику, а end останется строкой.
@@ -171,7 +234,23 @@ export function mergeState(current: Record<string, unknown>, incoming: Record<st
       out[k] = mergeState(isPlainObject(cv) ? cv : {}, iv);
     } else if (Array.isArray(iv)) {
       const base = Array.isArray(cv) ? cv : [];
-      out[k] = appendUnique(base as unknown[], iv);
+      // Явное удаление: элементы с _delete:true вычёркиваются из базы (маркер не сохраняется).
+      // merge по своей природе только дополняет — без маркера удаление из UI невозможно.
+      // Матчинг: по id, а для легаси-записей без id — по (title|date|time) из маркера.
+      const markers = iv.filter((x: any) => x && typeof x === 'object' && x._delete);
+      const delById = new Set(markers.filter((x: any) => x.id).map((x: any) => String(x.id)));
+      const delByKey = new Set(markers.filter((x: any) => !x.id).map((x: any) => `${x.title}|${x.date}|${x.time || ''}`));
+      let mergedBase = base;
+      if (delById.size || delByKey.size) {
+        mergedBase = base.filter((x: any) => {
+          if (x && typeof x === 'object') {
+            if (x.id && delById.has(String(x.id))) return false;
+            if (!x.id && delByKey.has(`${x.title}|${x.date}|${x.time || ''}`)) return false;
+          }
+          return true;
+        });
+      }
+      out[k] = appendUnique(mergedBase as unknown[], iv.filter((x: any) => !(x && typeof x === 'object' && x._delete)));
     } else if (iv !== null && iv !== undefined) {
       out[k] = iv;
     }
@@ -210,6 +289,9 @@ function itemKey(item: unknown): string {
     if (typeof o.timestamp === 'number' && !o.category) {
       return 'ev:' + eventKey(o as Record<string, unknown>);
     }
+    // Календарь: ключ (date|title) — перенос времени/полей проходит как обновление,
+    // а не как дубль; разные встречи с одинаковым title в разные даты не сливаются.
+    if (o.date && o.title && !o.timestamp) return 'cal:' + String(o.date) + '|' + String(o.title);
     if (o.title) return 'title:' + String(o.title);
     if (o.text) return 'text:' + String(o.text);
     if (o.skill) return 'skill:' + String(o.skill);

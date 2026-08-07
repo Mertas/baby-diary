@@ -165,6 +165,41 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .chat-bar .send { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--accent); background: none; color: var(--accent); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .2s; }
 .chat-bar .send:hover { background: var(--accent); color: #fff; }
 .chat-bar .send.stop { background: var(--accent); color: #fff; }
+/* Плашки-нотификации */
+.banners { display: flex; flex-direction: column; gap: 6px; padding: 0 16px 10px; }
+.banner { display: flex; gap: 8px; align-items: center; border-radius: 8px; padding: 8px 12px; font-size: 13px; background: #fff8e6; border: 1px solid #f0d9a8; }
+.banner.imp { background: #fdecea; border-color: #f0b4a8; font-weight: 600; }
+.banner .b-ico { font-size: 15px; }
+/* Календарь */
+.cal-head { display: flex; align-items: center; gap: 6px; padding: 10px 16px; flex-wrap: wrap; }
+.cal-head .cal-title { flex: 1; font-weight: 700; font-size: 15px; min-width: 130px; }
+.cal-head button { border: 1px solid var(--border); background: none; border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; color: var(--text); }
+.cal-head button:hover { background: var(--bg-soft, #eef2f7); }
+.cal-head .cal-view button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 0 12px 12px; }
+.cal-dow { text-align: center; font-size: 11px; color: var(--text-soft); padding: 4px 0; }
+.cal-cell { min-height: 62px; border: 1px solid var(--border); border-radius: 6px; padding: 3px; font-size: 11px; cursor: pointer; overflow: hidden; }
+.cal-cell:hover { background: var(--bg-soft, #eef2f7); }
+.cal-cell.other { opacity: .38; }
+.cal-cell.today { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.cal-num { font-size: 11px; color: var(--text-soft); }
+.cal-cell.today .cal-num { color: var(--accent); font-weight: 700; }
+.cal-ev { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 4px; padding: 1px 4px; margin-top: 1px; background: #e8f0fb; }
+.cal-ev.imp { background: #fdecea; color: #c0392b; font-weight: 600; }
+.cal-ev.rec::after { content: ' 🔁'; }
+.cal-ev.done { text-decoration: line-through; opacity: .5; }
+.cal-more { font-size: 10px; color: var(--text-soft); }
+.cal-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; padding: 0 12px 12px; }
+.cal-daycol { border: 1px solid var(--border); border-radius: 6px; min-height: 130px; padding: 4px; font-size: 11px; }
+.cal-daycol.today { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.cal-daycol h4 { margin: 0 0 4px; font-size: 11px; color: var(--text-soft); font-weight: 600; }
+.cal-list { display: flex; flex-direction: column; gap: 3px; }
+.cal-item { border-radius: 6px; padding: 4px 6px; font-size: 12px; background: #e8f0fb; }
+.cal-item .t { font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.cal-item .cal-del { margin-left: auto; border: none; background: none; color: var(--text-soft); cursor: pointer; font-size: 11px; padding: 0 2px; }
+.cal-item .cal-del:hover { color: #c0392b; }
+.cal-item.imp { background: #fdecea; color: #c0392b; }
+.cal-day .cal-item { margin-bottom: 4px; }
 </style>
 <div id="app">
   <div class="brand">
@@ -183,6 +218,7 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
   <div class="content" id="c-clothes"></div>
   <div class="content" id="c-sad"></div>
   <div class="content" id="c-shopping"></div>
+  <div class="content" id="c-calendar"></div>
   <div class="chat-panel">
     <div class="model-row"><button id="mp">Pro</button><button id="mf" class="active">Flash</button><button id="cc" class="collapse" title="Свернуть чат">▾</button><button id="cud" class="undo" title="Отменить последний ответ">↶</button></div>
     <div class="chat-msgs" id="cm"></div>
@@ -322,9 +358,9 @@ function renderAll() {
   renderRecipes();
   renderSpurts();
   renderClothes();
-  checkDueReminders();
   renderSad();
   renderShopping();
+  renderCalendar();
 }
 
 // Reusable todo list with checkboxes. todos: [{text, done, section}]
@@ -401,6 +437,7 @@ function renderShopping() {
 
 function renderDash() {
   const c = $('#c-dash'); if (!c) return; clear(c);
+  renderBanners(c);
   const feeds = S.feeds || [], sleeps = S.sleeps || [], evts = S.events || [], todos = S.todos || [];
   const d = S.details || {};
 
@@ -723,7 +760,7 @@ function renderSad() {
 
 function setupTabs() {
   const tb = $('#tb'); if (!tb) return;
-  const tabs = [['dash', 'Главная'], ['skills', 'Навыки'], ['tips', 'Советы'], ['recipes', 'Рецепты'], ['spurts', 'Скачки'], ['clothes', 'Гардероб'], ['sad', 'Сад'], ['shopping', 'Покупки']];
+  const tabs = [['dash', 'Главная'], ['calendar', 'Календарь'], ['skills', 'Навыки'], ['tips', 'Советы'], ['recipes', 'Рецепты'], ['spurts', 'Скачки'], ['clothes', 'Гардероб'], ['sad', 'Сад'], ['shopping', 'Покупки']];
   const els: HTMLElement[] = [];
   for (const [id, label] of tabs) {
     const b = el('button', { class: 'tab' + (id === 'dash' ? ' active' : '') }, label);
@@ -922,43 +959,184 @@ window.__runtime_subscribe('/chat/state', (raw: string) => {
   try { const d = JSON.parse(raw); if (d.type === 'state' && d.state) { S = d.state; renderAll(); } } catch { /* ignore */ }
 });
 
-// ─── Напоминания: уведомления (Notification API) ───
-// Проверка при каждом обновлении state (renderAll) + каждые 60 сек.
-// Срабатывают reminders с датой <= сегодня и !done; повторная отправка
-// одного и того же исключается localStorage-флагом (bd_notified_v1).
-const NOTIF_KEY = 'bd_notified_v1';
-function notifiedSet(): Set<string> {
-  try { return new Set(JSON.parse(localStorage.getItem(NOTIF_KEY) || '[]')); } catch { return new Set(); }
+// ─── Календарь: месяц / неделя / день + UI-плашки ───
+const WD = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+const WD_FULL = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
+const MONTHS = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
+let calView: 'month' | 'week' | 'day' = 'month';
+let calCursor: Date = startOfDay(new Date());
+const DAY_MS = 86400000;
+
+function startOfDay(d: Date): Date { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+function iso(d: Date): string {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
-function saveNotified(s: Set<string>) {
-  try { localStorage.setItem(NOTIF_KEY, JSON.stringify([...s].slice(-200))); } catch { /* ignore */ }
+function parseISO(s: string): Date | null {
+  const m = String(s).match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
 }
-function checkDueReminders() {
-  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-  const rems = (S.reminders || []) as any[];
-  if (!rems.length) return;
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const seen = notifiedSet();
-  let changed = false;
-  for (const r of rems) {
-    if (r.done || !r.date || typeof r.date !== 'string') continue; // без даты — чек-лист, не будильник
-    const d = new Date(r.date + 'T00:00:00');
-    if (isNaN(d.getTime()) || d.getTime() > today.getTime()) continue; // будущее — ждём
-    const key = r.date + '|' + (r.text || '');
-    if (seen.has(key)) continue;
-    try { new Notification('Baby Diary', { body: r.text || 'Напоминание', tag: 'bd:' + key }); } catch { /* ignore */ }
-    seen.add(key); changed = true;
+function fmtDay(d: Date): string { return String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0'); }
+function fmtDayFull(d: Date): string {
+  const idx = d.getDay() === 0 ? 6 : d.getDay() - 1;
+  const w = WD_FULL[idx];
+  return w[0].toUpperCase() + w.slice(1) + ' ' + fmtDay(d);
+}
+function calEvents(): any[] { return (S.calendar || []) as any[]; }
+/** Есть ли событие (с учётом повторяемости) в конкретный день? */
+function occursOn(ev: any, day: Date): boolean {
+  const d = parseISO(ev.date);
+  if (!d || ev.done) return false;
+  const diff = Math.round((startOfDay(day).getTime() - d.getTime()) / DAY_MS);
+  if (diff < 0) return false;
+  if (!ev.recurring) return diff === 0;
+  if (ev.recurring === 'daily') return true;
+  if (ev.recurring === 'weekly') return diff % 7 === 0;
+  if (ev.recurring === 'monthly') return d.getDate() === day.getDate();
+  return false;
+}
+/** Ближайшее вхождение события не раньше from (для плашек). */
+function nextOccurrence(ev: any, from: Date): Date | null {
+  const d = parseISO(ev.date);
+  if (!d || ev.done) return null;
+  if (!ev.recurring) return iso(d) >= iso(from) ? d : null;
+  let cur = new Date(d);
+  for (let i = 0; i < 500; i++) {
+    if (iso(cur) >= iso(from) && occursOn(ev, cur)) return cur;
+    cur = new Date(cur.getTime() + DAY_MS);
   }
-  if (changed) saveNotified(seen);
+  return null;
 }
-function requestNotifPermission() {
-  if (typeof Notification === 'undefined' || Notification.permission !== 'default') return;
-  try { Notification.requestPermission(); } catch { /* ignore */ }
+function sortByTime(a: any, b: any): number { return (a.time || '99:99').localeCompare(b.time || '99:99'); }
+/** Удаление события календаря из state (кнопка ✕) — через маркер _delete: серверный
+ *  merge дополняет массивы и не может удалить по отсутствию элемента.
+ *  Для легаси-записей без id маркер несёт (title|date|time) — точное совпадение. */
+function calDelete(ev: any) {
+  saveState({ calendar: [{ id: ev.id, title: ev.title, date: ev.date, time: ev.time, _delete: true }] });
 }
-requestNotifPermission();
-// Повторный запрос разрешения при первом взаимодействии (если браузер его требует)
-window.addEventListener('pointerdown', function once() {
-  requestNotifPermission();
-  window.removeEventListener('pointerdown', once);
-});
-setInterval(checkDueReminders, 60000);
+function calItemEl(e: any): HTMLElement {
+  const it = el('div', { class: 'cal-item' + (e.important ? ' imp' : '') });
+  const row = el('div', { class: 't' });
+  append(row, el('span', {}, (e.time ? e.time + ' ' : '') + e.title + (e.recurring ? ' 🔁' : '') + (e.important ? ' ⭐' : '')));
+  const del = el('button', { class: 'cal-del', title: 'Удалить' }, '✕');
+  del.addEventListener('click', (evt: Event) => { evt.stopPropagation(); calDelete(e); });
+  append(row, del);
+  append(it, row);
+  if (e.note) append(it, el('div', {}, e.note));
+  return it;
+}
+
+// Плашки: «Сегодня в 9:00 — Педиатр», «Завтра — Бассейн», «До 12.08 — Собрать справки»
+function renderBanners(c: HTMLElement) {
+  const today = startOfDay(new Date());
+  const items: { d: Date; ev: any; when: string }[] = [];
+  for (const ev of calEvents()) {
+    const n = nextOccurrence(ev, today);
+    if (!n) continue;
+    const diff = Math.round((startOfDay(n).getTime() - today.getTime()) / DAY_MS);
+    if (diff > 7) continue;
+    const when = diff === 0 ? 'Сегодня' : diff === 1 ? 'Завтра' : 'До ' + fmtDay(n);
+    items.push({ d: n, ev, when });
+  }
+  items.sort((a, b) => a.d.getTime() - b.d.getTime() || (b.ev.important ? 1 : 0) - (a.ev.important ? 1 : 0));
+  if (!items.length) return;
+  const box = el('div', { class: 'banners' });
+  for (const it of items.slice(0, 6)) {
+    const t = it.ev.time ? ' в ' + it.ev.time : '';
+    const txt = it.when + t + ' — ' + it.ev.title;
+    append(box, el('div', { class: 'banner' + (it.ev.important ? ' imp' : '') },
+      el('span', { class: 'b-ico' }, it.ev.important ? '⭐' : '📅'),
+      el('span', {}, txt)));
+  }
+  append(c, box);
+}
+
+function calTitle(): string {
+  if (calView === 'month') {
+    const m = MONTHS[calCursor.getMonth()];
+    return m[0].toUpperCase() + m.slice(1) + ' ' + calCursor.getFullYear();
+  }
+  if (calView === 'week') {
+    const end = new Date(calCursor.getTime() + 6 * DAY_MS);
+    return fmtDay(calCursor) + ' – ' + fmtDay(end);
+  }
+  return fmtDayFull(calCursor);
+}
+function shiftCal(dir: number) {
+  if (calView === 'month') calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() + dir, 1);
+  else if (calView === 'week') calCursor = new Date(calCursor.getTime() + dir * 7 * DAY_MS);
+  else calCursor = new Date(calCursor.getTime() + dir * DAY_MS);
+}
+function renderCalendar() {
+  const c = $('#c-calendar'); if (!c) return; clear(c);
+  const head = el('div', { class: 'cal-head' });
+  const navL = el('button', {}, '‹'), navR = el('button', {}, '›');
+  const title = el('div', { class: 'cal-title' }, calTitle());
+  const todayB = el('button', {}, 'Сегодня');
+  const views = el('div', { class: 'cal-view' });
+  for (const [v, l] of [['month', 'Месяц'], ['week', 'Неделя'], ['day', 'День']] as const) {
+    const b = el('button', { class: calView === v ? 'active' : '' }, l);
+    b.addEventListener('click', () => { calView = v; renderCalendar(); });
+    append(views, b);
+  }
+  navL.addEventListener('click', () => { shiftCal(-1); renderCalendar(); });
+  navR.addEventListener('click', () => { shiftCal(1); renderCalendar(); });
+  todayB.addEventListener('click', () => { calCursor = startOfDay(new Date()); renderCalendar(); });
+  append(head, navL, title, navR, todayB, views);
+  append(c, head);
+  if (calView === 'month') renderCalMonth(c);
+  else if (calView === 'week') renderCalWeek(c);
+  else renderCalDay(c);
+}
+function renderCalMonth(c: HTMLElement) {
+  const first = new Date(calCursor.getFullYear(), calCursor.getMonth(), 1);
+  const start = new Date(first);
+  start.setDate(first.getDate() - ((first.getDay() + 6) % 7)); // неделя с понедельника
+  const todayIso = iso(new Date());
+  const grid = el('div', { class: 'cal-grid' });
+  for (const w of WD) append(grid, el('div', { class: 'cal-dow' }, w));
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start.getTime() + i * DAY_MS);
+    const evs = calEvents().filter((e: any) => occursOn(e, d)).sort(sortByTime);
+    const cell = el('div', {
+      class: 'cal-cell' + (d.getMonth() !== calCursor.getMonth() ? ' other' : '') + (iso(d) === todayIso ? ' today' : ''),
+    });
+    append(cell, el('div', { class: 'cal-num' }, String(d.getDate())));
+    for (const e of evs.slice(0, 3)) {
+      append(cell, el('div', {
+        class: 'cal-ev' + (e.important ? ' imp' : '') + (e.recurring ? ' rec' : '') + (e.done ? ' done' : ''),
+      }, (e.time ? e.time + ' ' : '') + e.title));
+    }
+    if (evs.length > 3) append(cell, el('div', { class: 'cal-more' }, '+' + (evs.length - 3)));
+    cell.addEventListener('click', () => { calView = 'day'; calCursor = d; renderCalendar(); });
+    append(grid, cell);
+  }
+  append(c, grid);
+}
+function renderCalWeek(c: HTMLElement) {
+  const monday = startOfDay(calCursor);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const todayIso = iso(new Date());
+  const wk = el('div', { class: 'cal-week' });
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday.getTime() + i * DAY_MS);
+    const evs = calEvents().filter((e: any) => occursOn(e, d)).sort(sortByTime);
+    const col = el('div', { class: 'cal-daycol' + (iso(d) === todayIso ? ' today' : '') });
+    append(col, el('h4', {}, WD[i] + ' ' + fmtDay(d)));
+    const list = el('div', { class: 'cal-list' });
+    for (const e of evs) append(list, calItemEl(e));
+    append(col, list);
+    append(wk, col);
+  }
+  append(c, wk);
+}
+function renderCalDay(c: HTMLElement) {
+  const d = startOfDay(calCursor);
+  const evs = calEvents().filter((e: any) => occursOn(e, d)).sort(sortByTime);
+  const card = el('div', { class: 'card' });
+  append(card, el('div', { class: 'card-h' }, fmtDayFull(d) + (iso(d) === iso(new Date()) ? ' · сегодня' : '')));
+  if (!evs.length) {
+    append(card, el('div', { class: 'empty', style: 'padding:12px' }, 'На этот день событий нет. Напишите в чат — запишу.'));
+  }
+  for (const e of evs) append(card, calItemEl(e));
+  append(c, card);
+}
