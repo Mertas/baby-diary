@@ -200,6 +200,16 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .cal-item .cal-del:hover { color: #c0392b; }
 .cal-item.imp { background: #fdecea; color: #c0392b; }
 .cal-day .cal-item { margin-bottom: 4px; }
+/* Типы карточек Главной: hero-сводка, тихий профиль, тёплый план, хроника на всю ширину */
+.card.hero { border-color: var(--accent); border-top: 3px solid var(--accent); background: linear-gradient(180deg, #fff6ee, var(--card)); }
+.card.hero .card-h { background: #f6eee2; }
+.hero-stats { display: flex; gap: 28px; padding: 14px 18px 16px; flex-wrap: wrap; }
+.hero-stats .hs-v { font-family: var(--serif); font-size: 28px; font-weight: 600; color: var(--accent); line-height: 1.1; }
+.hero-stats .hs-l { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); margin-top: 3px; }
+.card.quiet { background: rgba(255,253,249,0.55); box-shadow: none; border-color: #e8e1d5; }
+.card.week { background: #fffdf4; border-color: #e6dcc0; }
+.card.week .card-h { background: #f6eeda; }
+.card.span2 { grid-column: 1 / -1; }
 /* ─── Адаптив: десктоп = контент + чат-сайдбар; планшет/мобайл = одна колонка ─── */
 @media (min-width: 1024px) {
   #app { display: grid; grid-template-columns: minmax(0, 1100px) 400px; grid-template-rows: auto auto auto minmax(0, 1fr); max-width: 1560px; margin: 0 auto; border: none; }
@@ -210,9 +220,13 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
   .tabs { grid-column: 1; grid-row: 3; padding-left: 24px; }
   .content { grid-column: 1; grid-row: 4; padding: 16px 28px 48px; }
   /* Главная: карточки в две колонки, плашки — компактной сеткой */
-  #c-dash.active { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 18px; align-items: start; }
+  #c-dash.active { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 18px; align-items: start; grid-auto-flow: dense; }
   #c-dash .banners { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 0 0 10px; }
   #c-dash .card { margin-bottom: 14px; }
+  #c-dash .notice { grid-column: 1 / -1; }
+  /* План на неделю: на всю ширину, дни в две колонки, чтобы карточка не вытягивалась */
+  #c-dash .card.week { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 18px; align-items: start; }
+  #c-dash .card.week .card-h, #c-dash .card.week .ask-btn { grid-column: 1 / -1; }
   /* Текстовые разделы — читаемая ширина, карточки не растягиваются */
   #c-tips, #c-recipes, #c-skills, #c-spurts, #c-clothes, #c-sad, #c-shopping { max-width: 840px; }
   .chat-panel { grid-column: 2; grid-row: 1 / 5; border-top: none; border-left: 1px solid var(--border); max-height: none; }
@@ -472,6 +486,7 @@ function renderShopping() {
 function renderDash() {
   const c = $('#c-dash'); if (!c) return; clear(c);
   renderBanners(c);
+  const byKey: Record<string, HTMLElement> = {};
   const feeds = S.feeds || [], sleeps = S.sleeps || [], evts = S.events || [], todos = S.todos || [];
   const d = S.details || {};
 
@@ -482,11 +497,11 @@ function renderDash() {
       el('div', { class: 'n-title' }, 'Точный учёт уже не так важен'),
       el('div', { class: 'n-text' }, 'С возрастом ребёнка отпадает необходимость поминутно фиксировать каждое кормление, сон и пробуждение. Режим стабилизируется, и вы сами лучше чувствуете потребности. Теперь дневник — это база знаний: рецепты, советы, развитие и подготовка к школе. Пользоваться кнопками учёта можно, но они не обязательны.')
     );
-    append(c, notice);
+    byKey.notice = notice;
   }
 
   if (S.birthDate) {
-    const card = el('div', { class: 'card' }); append(card, el('div', { class: 'card-h' }, 'Профиль'));
+    const card = el('div', { class: 'card quiet' }); append(card, el('div', { class: 'card-h' }, 'Профиль'));
     const rows: [string, string][] = [];
     const a = ageStr(S.birthDate); if (a) rows.push(['Возраст', a]);
     if (S.weight) rows.push(['Вес', S.weight + ' г']);
@@ -494,7 +509,7 @@ function renderDash() {
     if (d.skills) rows.push(['Навыки', String(d.skills)]);
     if (d.sleepPattern) rows.push(['Сон', String(d.sleepPattern)]);
     if (rows.length) for (const [l, v] of rows) append(card, el('div', { class: 'clothes-row' }, el('span', { class: 'c-lbl' }, l), el('span', { class: 'c-val' }, String(v))));
-    append(c, card);
+    byKey.profile = card;
   }
 
   // Сводка: Навыки
@@ -519,11 +534,11 @@ function renderDash() {
     openSk.addEventListener('click', () => { const t = [...document.querySelectorAll('.tab')].find(b => b.textContent === 'Навыки'); if (t) t.click(); });
     append(skCard, openSk);
   }
-  append(c, skCard);
+  byKey.skills = skCard;
 
   // План на неделю
   const wp = S.weekPlan;
-  const wpCard = el('div', { class: 'card' }); append(wpCard, el('div', { class: 'card-h' }, 'План на неделю'));
+  const wpCard = el('div', { class: 'card week' }); append(wpCard, el('div', { class: 'card-h' }, 'План на неделю'));
   if (wp && Array.isArray(wp.days) && wp.days.length) {
     for (const d of wp.days) {
       const day = el('div', { class: 'wp-day' });
@@ -538,10 +553,10 @@ function renderDash() {
     append(wpCard, el('div', { class: 'empty', style: 'padding:14px' }, 'Плана пока нет'));
     append(wpCard, askFooter('Составь план на неделю: меню на каждый день (завтрак, обед, ужин, перекус — с граммовкой, на 2–3 дня), прогулки и активности. Учти возраст, режим и любимые продукты. Сохрани в weekPlan.'));
   }
-  append(c, wpCard);
+  byKey.plan = wpCard;
 
   const tc = todoCard('Задачи', todos.filter((t: any) => !t.section));
-  if (tc) append(c, tc);
+  if (tc) byKey.todos = tc;
 
   const all: any[] = [];
   feeds.forEach((e: any, i: number) => all.push({ e, kind: 'feeds', i, icon: '🍼', title: 'Кормление', sub: (e.type || '') + (e.amount ? ' · ' + e.amount + ' мл' : '') }));
@@ -563,7 +578,7 @@ function renderDash() {
   const feedAmt = feeds.filter((e: any) => (e.timestamp || 0) >= t0).reduce((a: number, e: any) => a + (e.amount || 0), 0);
   // Сводка видна всегда, когда в дневнике есть хоть какие-то данные (даже если за период пусто — можно переключить период)
   if (feeds.length || sleeps.length || evts.length) {
-    const sc = el('div', { class: 'card' }); append(sc, el('div', { class: 'card-h' }, dashPeriod === 0 ? 'Сегодня' : 'За ' + dashPeriod + ' дня'));
+    const sc = el('div', { class: 'card hero' }); append(sc, el('div', { class: 'card-h' }, dashPeriod === 0 ? 'Сегодня' : 'За ' + dashPeriod + ' дня'));
     const pbar = el('div', { class: 'period-btns' });
     for (const [v, label] of [['0', 'Сегодня'], ['3', '3 дня'], ['7', '7 дней']] as [string, string][]) {
       const b = el('button', { class: 'modal-btn' + (String(dashPeriod) === v ? ' sel' : '') }, label);
@@ -571,11 +586,13 @@ function renderDash() {
       append(pbar, b);
     }
     append(sc, pbar);
-    if (nFeeds) append(sc, el('div', { class: 'clothes-row' }, el('span', { class: 'c-lbl' }, 'Кормлений'), el('span', { class: 'c-val' }, String(nFeeds))));
-    if (feedAmt) append(sc, el('div', { class: 'clothes-row' }, el('span', { class: 'c-lbl' }, 'Объём'), el('span', { class: 'c-val' }, feedAmt + ' мл')));
-    if (sleepMs) append(sc, el('div', { class: 'clothes-row' }, el('span', { class: 'c-lbl' }, 'Сон'), el('span', { class: 'c-val' }, durStr(sleepMs))));
-    if (nEvts) append(sc, el('div', { class: 'clothes-row' }, el('span', { class: 'c-lbl' }, 'Событий'), el('span', { class: 'c-val' }, String(nEvts))));
-    append(c, sc);
+    const stats = el('div', { class: 'hero-stats' });
+    if (nFeeds) append(stats, el('div', { class: 'hs' }, el('div', { class: 'hs-v' }, String(nFeeds)), el('div', { class: 'hs-l' }, 'кормлений')));
+    if (feedAmt) append(stats, el('div', { class: 'hs' }, el('div', { class: 'hs-v' }, String(feedAmt)), el('div', { class: 'hs-l' }, 'мл смеси')));
+    if (sleepMs) append(stats, el('div', { class: 'hs' }, el('div', { class: 'hs-v' }, durStr(sleepMs)), el('div', { class: 'hs-l' }, 'сон')));
+    if (nEvts) append(stats, el('div', { class: 'hs' }, el('div', { class: 'hs-v' }, String(nEvts)), el('div', { class: 'hs-l' }, 'событий')));
+    append(sc, stats);
+    byKey.summary = sc;
   }
 
   // Напоминания (все невыполненные — просроченные и ближайшие)
@@ -588,11 +605,11 @@ function renderDash() {
       (row.querySelector('input') as HTMLInputElement).addEventListener('change', function () { r.done = this.checked; saveState({ reminders: rems }); });
       append(rc, row);
     }
-    append(c, rc);
+    byKey.rems = rc;
   }
 
   if (all.length) {
-    const card = el('div', { class: 'card' }); append(card, el('div', { class: 'card-h' }, 'Хроника'));
+    const card = el('div', { class: 'card span2' }); append(card, el('div', { class: 'card-h' }, 'Хроника'));
     let curDay = '';
     for (const it of all.slice(0, 40)) {
       const k = dayKey(it.e.timestamp);
@@ -611,9 +628,16 @@ function renderDash() {
       append(row, del);
       append(card, row);
     }
-    append(c, card);
+    byKey.timeline = card;
   }
-  if (!all.length && !todos.length) append(c, el('div', { class: 'empty' }, 'Запишите кормление, сон или спросите в чате.'));
+  // Порядок на Главной: сводка → напоминания → хроника (на всю ширину) → профиль → задачи → навыки → план
+  const order = ['notice', 'summary', 'rems', 'timeline', 'profile', 'todos', 'skills', 'plan'];
+  let anyCard = false;
+  for (const k of order) {
+    const x = byKey[k];
+    if (x) { append(c, x); anyCard = true; }
+  }
+  if (!anyCard) append(c, el('div', { class: 'empty' }, 'Запишите кормление, сон или спросите в чате.'));
 }
 function renderTips() {
   const c = $('#c-tips'); if (!c) return; clear(c);
