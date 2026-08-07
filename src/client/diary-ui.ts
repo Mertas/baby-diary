@@ -200,6 +200,33 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .cal-item .cal-del:hover { color: #c0392b; }
 .cal-item.imp { background: #fdecea; color: #c0392b; }
 .cal-day .cal-item { margin-bottom: 4px; }
+/* ─── Адаптив: десктоп = контент + чат-сайдбар; планшет/мобайл = одна колонка ─── */
+@media (min-width: 1024px) {
+  #app { display: grid; grid-template-columns: minmax(0, 1fr) 380px; grid-template-rows: auto auto auto minmax(0, 1fr); max-width: none; margin: 0; border: none; }
+  .brand { grid-column: 1; grid-row: 1; }
+  .actions { grid-column: 1; grid-row: 2; }
+  .tabs { grid-column: 1; grid-row: 3; }
+  .content { grid-column: 1; grid-row: 4; justify-self: center; width: 100%; max-width: 980px; padding: 18px 24px 48px; }
+  .content .card { max-width: 980px; }
+  .chat-panel { grid-column: 2; grid-row: 1 / 5; border-top: none; border-left: 1px solid var(--border); max-height: none; }
+  .chat-msgs { flex: 1; min-height: 0; }
+  .brand { padding-top: 28px; }
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  #app { max-width: 780px; }
+}
+@media (max-width: 640px) {
+  .actions { flex-wrap: wrap; gap: 4px 8px; }
+  .action { padding: 6px 10px; }
+  .brand .name { font-size: 22px; }
+  .banner { font-size: 12px; padding: 7px 10px; }
+  .cal-cell { min-height: 44px; }
+  #c-calendar { overflow: auto; }
+  .cal-week { min-width: 600px; }
+  .cal-head { padding: 8px 12px; }
+  .cal-head .cal-title { font-size: 14px; }
+  .msg { max-width: 92%; }
+}
 </style>
 <div id="app">
   <div class="brand">
