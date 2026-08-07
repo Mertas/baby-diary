@@ -133,6 +133,7 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .modal h3 { font-family: var(--serif); font-size: 19px; font-weight: 500; margin-bottom: 16px; }
 .modal-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
 .modal-btn { padding: 8px 16px; border: none; border-bottom: 1px solid var(--border); background: none; cursor: pointer; font-size: 12px; font-family: var(--sans); color: var(--text-dim); letter-spacing: 0.04em; }
+.modal-btn.danger { color: #c0392b; border-bottom-color: #c0392b; }
 .modal-btn.sel { color: var(--accent); border-bottom-color: var(--accent); }
 .modal-inp { width: 100%; padding: 10px 0; border: none; border-bottom: 1px solid var(--border); border-radius: 0; font-size: 13px; font-family: var(--sans); color: var(--text); background: transparent; margin-bottom: 12px; outline: none; }
 .modal-inp:focus { border-bottom-color: var(--accent); }
@@ -219,12 +220,11 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .htl-lbl { width: 112px; flex-shrink: 0; font-size: 12px; color: var(--text-dim); text-align: right; letter-spacing: 0.02em; }
 .htl-track { position: relative; flex: 1; height: 44px; border-bottom: 1px solid #f2ede4; background: repeating-linear-gradient(90deg, transparent 0, transparent calc(25% - 1px), #f4efe6 calc(25% - 1px), #f4efe6 25%); }
 .htl-ev { position: absolute; top: 50%; cursor: pointer; z-index: 1; }
-.htl-ev.feed { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); transform: translate(-50%, -50%); z-index: 2; }
+.htl-ev.feed { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); transform: translate(-50%, -50%); z-index: 3; }
 .htl-ev.sleep { height: 18px; border-radius: 9px; background: #5b8def; opacity: 0.85; transform: translateY(-50%); }
-.htl-ev.ev { width: 11px; height: 11px; background: #8e6fd8; transform: translate(-50%, -50%) rotate(45deg); z-index: 2; }
-.htl-ev:hover { z-index: 4; }
-.htl-ev.feed:hover, .htl-ev.ev:hover { transform: translate(-50%, -50%) rotate(0deg) scale(1.3); box-shadow: 0 0 0 3px rgba(232, 98, 42, 0.15); }
-.htl-ev.sleep:hover { opacity: 1; box-shadow: 0 0 0 2px rgba(91, 141, 239, 0.25); }
+.htl-ev.ev { width: 11px; height: 11px; background: #8e6fd8; transform: translate(-50%, -50%) rotate(45deg); z-index: 3; }
+.htl-ev.sleep:hover { z-index: 2; opacity: 1; box-shadow: 0 0 0 2px rgba(91, 141, 239, 0.25); } /* полоса не перекрывает точки */
+.htl-ev.feed:hover, .htl-ev.ev:hover { z-index: 4; transform: translate(-50%, -50%) rotate(0deg) scale(1.3); box-shadow: 0 0 0 3px rgba(232, 98, 42, 0.15); }
 .htl-ev.ev:hover { box-shadow: 0 0 0 3px rgba(142, 111, 216, 0.18); }
 .htl-empty { position: absolute; left: 0; top: 50%; transform: translateY(-50%); font-size: 11px; color: #d9d1c3; }
 .htl-legend { display: flex; gap: 16px; align-items: center; padding: 4px 18px 10px; font-size: 11px; color: var(--text-soft); }
@@ -233,7 +233,7 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .htl-legend .lg.ev { transform: rotate(45deg); background: #8e6fd8; }
 /* Летающий тултип (как в Megabrain2): один общий элемент, перелетает между целями */
 .flytip { position: fixed; z-index: 9999; background: #43392e; color: #fdf8ef; font-size: 12px; line-height: 1.5; padding: 8px 12px; border-radius: 9px; max-width: 300px; pointer-events: none; opacity: 0; transition: opacity 0.15s ease, left 0.28s cubic-bezier(0.22, 0.9, 0.3, 1.25), top 0.28s cubic-bezier(0.22, 0.9, 0.3, 1.25); box-shadow: 0 8px 22px rgba(50, 30, 10, 0.28); }
-.flytip.on { opacity: 1; }
+.flytip.on { opacity: 1; white-space: pre-line; }
 .flytip::after { content: ''; position: absolute; left: 50%; bottom: -5px; width: 10px; height: 10px; background: #43392e; transform: translateX(-50%) rotate(45deg); border-radius: 2px; }
 .flytip.below::after { bottom: auto; top: -5px; }
 /* ─── Адаптив: десктоп = контент + чат-сайдбар; планшет/мобайл = одна колонка ─── */
@@ -494,7 +494,25 @@ let flytipCur: HTMLElement | null = null;
 document.addEventListener('mouseover', (ev) => {
   const tgt = ev.target as HTMLElement;
   const t = tgt.closest ? tgt.closest('[data-tip]') as HTMLElement | null : null;
-  if (t && t !== flytipCur) { flytipCur = t; flytip.show(t, t.getAttribute('data-tip') || ''); }
+  if (t && t !== flytipCur) {
+    flytipCur = t;
+    // Кластер на таймлайне: события, пересекающиеся с наведённым, показываем одним тултипом
+    if (t.classList.contains('htl-ev')) {
+      const track = t.closest('.htl-track');
+      const r = t.getBoundingClientRect();
+      const near: HTMLElement[] = [];
+      if (track) for (const o of track.querySelectorAll('.htl-ev') as unknown as HTMLElement[]) {
+        if (o === t) continue;
+        const or = o.getBoundingClientRect();
+        if (or.left < r.right + 4 && or.right > r.left - 4) near.push(o);
+      }
+      const lines = [t.getAttribute('data-tip') || '', ...near.map((o) => o.getAttribute('data-tip') || '')];
+      lines.sort((a, b) => (a < b ? -1 : 1));
+      flytip.show(t, lines.join('\n'));
+    } else {
+      flytip.show(t, t.getAttribute('data-tip') || '');
+    }
+  }
 });
 document.addEventListener('mouseout', (ev) => {
   const tgt = ev.target as HTMLElement;
@@ -556,6 +574,30 @@ function renderShopping() {
     append(c, card);
   }
   append(c, askFooter('Дополни и обнови список покупок: продукты на неделю (с учётом меню), одежда и что ещё нужно купить.'));
+}
+
+/* Карточка события таймлайна: клик по маркеру */
+function htlEventCard(it: any) {
+  const d = it.e;
+  modal(it.title, (b) => {
+    append(b, el('div', { style: 'font-size:26px;text-align:center;padding:8px 0 6px' }, it.icon));
+    const rows: [string, string][] = [];
+    rows.push(['Время', fmtTime(d.timestamp)]);
+    if (it.kind === 'sleeps' && d.end) rows.push(['Длительность', durStr(d.end - d.timestamp)]);
+    if (it.kind === 'feeds' && d.amount) rows.push(['Объём', String(d.amount) + ' мл']);
+    if (d.type) rows.push(['Тип', String(d.type)]);
+    if (d.note) rows.push(['Заметка', String(d.note)]);
+    for (const [l, v] of rows) append(b, el('div', { class: 'clothes-row' }, el('span', { class: 'c-lbl' }, l), el('span', { class: 'c-val' }, v)));
+    const del = el('button', { class: 'modal-btn danger' }, 'Удалить запись');
+    del.addEventListener('click', () => {
+      if (!confirm('Удалить эту запись?')) return;
+      const arr = it.kind === 'feeds' ? (S.feeds || []) : it.kind === 'sleeps' ? (S.sleeps || []) : (S.events || []);
+      const next = arr.slice(); next.splice(it.i, 1);
+      saveState({ feeds: it.kind === 'feeds' ? next : S.feeds || [], sleeps: it.kind === 'sleeps' ? next : S.sleeps || [], events: it.kind === 'events' ? next : S.events || [] });
+      document.querySelector('.modal-overlay')?.remove();
+    });
+    append(b, el('div', { style: 'text-align:center;padding-top:12px' }, del));
+  }, () => { }, true);
 }
 
 let htlDays = 5; // глубина горизонтального таймлайна (дней)
@@ -715,15 +757,23 @@ function renderDash() {
           const endPct = pctOf(it.e.end);
           const cross = endPct <= startPct; // сон через полночь
           const w = cross ? 100 - startPct : Math.max(1.5, endPct - startPct);
-          append(lane.track, el('div', { class: 'htl-ev sleep', style: 'left:' + startPct + '%;width:' + w + '%', 'data-tip': fmtTime(ts) + '–' + fmtTime(it.e.end) + ' · ' + it.title + ' · ' + durStr(it.e.end - ts) }));
+          const sl = el('div', { class: 'htl-ev sleep', style: 'left:' + startPct + '%;width:' + w + '%', 'data-tip': fmtTime(ts) + '–' + fmtTime(it.e.end) + ' · ' + it.title + ' · ' + durStr(it.e.end - ts) });
+          sl.addEventListener('click', (evt: Event) => { evt.stopPropagation(); htlEventCard(it); });
+          append(lane.track, sl);
           if (cross) {
             const nk = dayKey(ts + DAY_MS);
             const nl = lanes.find((l) => l.key === nk);
-            if (nl) append(nl.track, el('div', { class: 'htl-ev sleep', style: 'left:0;width:' + endPct + '%;', 'data-tip': fmtTime(ts) + '–' + fmtTime(it.e.end) + ' · ' + it.title + ' · ' + durStr(it.e.end - ts) }));
+            if (nl) {
+              const cont = el('div', { class: 'htl-ev sleep', style: 'left:0;width:' + endPct + '%;', 'data-tip': fmtTime(ts) + '–' + fmtTime(it.e.end) + ' · ' + it.title + ' · ' + durStr(it.e.end - ts) });
+              cont.addEventListener('click', (evt: Event) => { evt.stopPropagation(); htlEventCard(it); });
+              append(nl.track, cont);
+            }
           }
         } else {
           const cls = it.kind === 'feeds' ? 'feed' : 'ev';
-          append(lane.track, el('div', { class: 'htl-ev ' + cls, style: 'left:' + startPct + '%', 'data-tip': fmtTime(ts) + ' · ' + it.title + (it.sub ? ' · ' + it.sub : '') }));
+          const dot = el('div', { class: 'htl-ev ' + cls, style: 'left:' + startPct + '%', 'data-tip': fmtTime(ts) + ' · ' + it.title + (it.sub ? ' · ' + it.sub : '') });
+          dot.addEventListener('click', (evt: Event) => { evt.stopPropagation(); htlEventCard(it); });
+          append(lane.track, dot);
         }
       }
       if (!lane.track.querySelector('.htl-ev')) append(lane.track, el('span', { class: 'htl-empty' }, 'нет записей'));
@@ -952,15 +1002,16 @@ function setupActions() {
     btns[0].classList.add('dim'); btns[1].classList.add('dim'); btns[2].classList.add('dim');
   }
 }
-function modal(title: string, bodyFn: (b: HTMLElement) => void, onSave: () => void) {
+function modal(title: string, bodyFn: (b: HTMLElement) => void, onSave: () => void, noSave?: boolean) {
   const ov = el('div', { class: 'modal-overlay' }), md = el('div', { class: 'modal' }), bd = el('div', {});
   const ac = el('div', { class: 'modal-actions' }, el('button', { class: 'cancel' }, 'Отмена'), el('button', { class: 'save' }, 'Сохранить'));
   append(md, el('h3', {}, title), bd, ac); append(ov, md); append(document.body, ov);
   bodyFn(bd);
+  if (noSave) ac.querySelector('.save')!.style.display = 'none';
   const close = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') close();
-    if (e.key === 'Enter') { const s = ac.querySelector('.save'); if (s) (s as HTMLElement).click(); }
+    if (e.key === 'Enter') { const s = ac.querySelector('.save'); if (s && (s as HTMLElement).style.display !== 'none') (s as HTMLElement).click(); }
   };
   document.addEventListener('keydown', onKey);
   ac.querySelector('.save')!.addEventListener('click', () => { onSave(); close(); });
