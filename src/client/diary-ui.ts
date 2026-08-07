@@ -210,23 +210,26 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .card.week { background: #fffdf4; border-color: #e6dcc0; }
 .card.week .card-h { background: #f6eeda; }
 .card.span2 { grid-column: 1 / -1; }
-/* Хроника: каждый день — временная линия с событиями */
-.tl-day { padding: 2px 0 6px; }
-.tl-day-h { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 18px 2px; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-soft); background: #faf6ee; border-bottom: 1px solid var(--border); }
-.tl-day-c { font-size: 10px; letter-spacing: 0.04em; text-transform: none; }
-.tl { position: relative; margin: 2px 0 6px 22px; padding: 2px 0 8px 36px; border-left: 2px solid #e6ded0; }
-.tl-item { position: relative; display: flex; gap: 10px; align-items: flex-start; padding: 8px 14px 8px 4px; }
-.tl-item:hover { background: rgba(0, 0, 0, 0.025); }
-.tl-item::before { content: ''; position: absolute; left: -43px; top: 13px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface); box-shadow: 0 0 0 1px rgba(232, 98, 42, 0.25); }
-.tl-item.sleeps::before { background: #5b8def; box-shadow: 0 0 0 1px rgba(91, 141, 239, 0.25); }
-.tl-item.events::before { background: #8e6fd8; box-shadow: 0 0 0 1px rgba(142, 111, 216, 0.25); }
-.tl-time { font-size: 11px; color: var(--text-soft); font-variant-numeric: tabular-nums; min-width: 34px; padding-top: 1px; }
-.tl-ico { font-size: 13px; width: 18px; text-align: center; }
-.tl-body { flex: 1; }
-.tl-title { font-size: 13px; font-weight: 500; }
-.tl-sub { font-size: 11px; color: var(--text-dim); margin-top: 1px; }
-.tl-del { margin-left: auto; background: none; border: none; color: var(--text-soft); cursor: pointer; font-size: 11px; padding: 2px 4px; align-self: center; flex-shrink: 0; }
-.tl-del:hover { color: #c0392b; }
+/* Хроника: горизонтальный таймлайн — дни дорожками, события по времени суток */
+.htl { overflow-x: auto; padding: 10px 18px 4px; }
+.htl-grid, .htl-day { position: relative; min-width: 640px; }
+.htl-grid { height: 14px; border-bottom: 1px dashed var(--border); }
+.htl-h { position: absolute; top: 0; font-size: 9px; color: var(--text-soft); transform: translateX(-50%); }
+.htl-day { display: flex; align-items: center; gap: 12px; padding: 3px 0; }
+.htl-lbl { width: 104px; flex-shrink: 0; font-size: 11px; color: var(--text-dim); text-align: right; letter-spacing: 0.02em; }
+.htl-track { position: relative; flex: 1; height: 26px; border-bottom: 1px solid #f2ede4; background: repeating-linear-gradient(90deg, transparent 0, transparent calc(25% - 1px), #f4efe6 calc(25% - 1px), #f4efe6 25%); }
+.htl-ev { position: absolute; top: 50%; cursor: pointer; }
+.htl-ev.feed { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); transform: translate(-50%, -50%); }
+.htl-ev.sleep { height: 12px; border-radius: 6px; background: #5b8def; opacity: 0.85; transform: translateY(-50%); }
+.htl-ev.ev { width: 9px; height: 9px; background: #8e6fd8; transform: translate(-50%, -50%) rotate(45deg); }
+.htl-ev.feed:hover, .htl-ev.ev:hover { transform: translate(-50%, -50%) rotate(0deg) scale(1.35); box-shadow: 0 0 0 3px rgba(232, 98, 42, 0.15); z-index: 2; }
+.htl-ev.sleep:hover { opacity: 1; box-shadow: 0 0 0 2px rgba(91, 141, 239, 0.25); }
+.htl-ev.ev:hover { box-shadow: 0 0 0 3px rgba(142, 111, 216, 0.18); }
+.htl-empty { position: absolute; left: 0; top: 50%; transform: translateY(-50%); font-size: 10px; color: #d9d1c3; }
+.htl-legend { display: flex; gap: 16px; align-items: center; padding: 2px 18px 10px; font-size: 10px; color: var(--text-soft); }
+.htl-legend .lg { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+.htl-legend .lg.sleep { height: 8px; border-radius: 4px; background: #5b8def; }
+.htl-legend .lg.ev { transform: rotate(45deg); background: #8e6fd8; }
 /* ─── Адаптив: десктоп = контент + чат-сайдбар; планшет/мобайл = одна колонка ─── */
 @media (min-width: 1024px) {
   #app { display: grid; grid-template-columns: minmax(0, 1100px) 400px; grid-template-rows: auto auto auto minmax(0, 1fr); max-width: 1560px; margin: 0 auto; border: none; }
@@ -500,6 +503,7 @@ function renderShopping() {
   append(c, askFooter('Дополни и обнови список покупок: продукты на неделю (с учётом меню), одежда и что ещё нужно купить.'));
 }
 
+let htlDays = 5; // глубина горизонтального таймлайна (дней)
 function renderDash() {
   const c = $('#c-dash'); if (!c) return; clear(c);
   renderBanners(c);
@@ -627,44 +631,58 @@ function renderDash() {
 
   if (all.length) {
     const card = el('div', { class: 'card span2' }); append(card, el('div', { class: 'card-h' }, 'Хроника'));
-    // День = временная линия: дни от новых к старым, события внутри дня по времени (восходящая линия)
-    const days: { key: string; items: any[] }[] = [];
+    // Горизонтальный таймлайн: последние htlDays дней дорожками, события — по времени суток
+    const nowD = new Date(); nowD.setHours(0, 0, 0, 0);
+    const lanes: { key: string; label: string; track: HTMLElement; items: any[] }[] = [];
+    for (let i = htlDays - 1; i >= 0; i--) {
+      const d = new Date(nowD.getTime() - i * DAY_MS);
+      const key = iso(d);
+      const idx = d.getDay() === 0 ? 6 : d.getDay() - 1;
+      const label = i === 0 ? 'Сегодня' : i === 1 ? 'Вчера' : i === 2 ? 'Позавчера' : fmtDay(d) + ' ' + WD[idx];
+      lanes.push({ key, label, track: el('div', { class: 'htl-track' }), items: [] });
+    }
     for (const it of all) {
-      const k = dayKey(it.e.timestamp);
-      let g = days.find((x) => x.key === k);
-      if (!g) { g = { key: k, items: [] }; days.push(g); }
-      g.items.push(it);
+      const lane = lanes.find((l) => l.key === dayKey(it.e.timestamp));
+      if (lane) lane.items.push(it);
     }
-    days.sort((a, b) => (a.key < b.key ? 1 : -1));
-    for (const g of days) g.items.sort((a, b) => (a.e.timestamp || 0) - (b.e.timestamp || 0));
-    let shown = 0;
-    for (const g of days) {
-      if (shown >= 40) break;
-      const cnt = Math.min(g.items.length, 40 - shown);
-      shown += cnt;
-      const day = el('div', { class: 'tl-day' });
-      append(day, el('div', { class: 'tl-day-h' }, dayTitle(g.key), el('span', { class: 'tl-day-c' }, cnt + ' запис' + (cnt % 10 === 1 && cnt % 100 !== 11 ? 'ь' : cnt % 10 >= 2 && cnt % 10 <= 4 && (cnt % 100 < 12 || cnt % 100 > 14) ? 'и' : 'ей'))));
-      const tl = el('div', { class: 'tl' });
-      for (const it of g.items.slice(0, cnt)) {
-        const row = el('div', { class: 'tl-item ' + it.kind });
-        append(row, el('span', { class: 'tl-time' }, fmtTime(it.e.timestamp)), el('span', { class: 'tl-ico' }, it.icon));
-        const body = el('div', { class: 'tl-body' });
-        append(body, el('div', { class: 'tl-title' }, it.title));
-        if (it.sub) append(body, el('div', { class: 'tl-sub' }, it.sub));
-        append(row, body);
-        const del = el('button', { class: 'tl-del', title: 'Удалить запись' }, '✕');
-        del.addEventListener('click', () => {
-          if (!confirm('Удалить эту запись?')) return;
-          const arr = it.kind === 'feeds' ? (S.feeds || []) : it.kind === 'sleeps' ? (S.sleeps || []) : (S.events || []);
-          const next = arr.slice(); next.splice(it.i, 1);
-          saveState({ feeds: it.kind === 'feeds' ? next : S.feeds || [], sleeps: it.kind === 'sleeps' ? next : S.sleeps || [], events: it.kind === 'events' ? next : S.events || [] });
-        });
-        append(row, del);
-        append(tl, row);
+    const htl = el('div', { class: 'htl' });
+    const grid = el('div', { class: 'htl-grid' });
+    for (const h of [0, 6, 12, 18, 24]) append(grid, el('span', { class: 'htl-h', style: 'left:' + (h / 24 * 100) + '%' }, h === 24 ? '' : String(h).padStart(2, '0')));
+    append(htl, grid);
+    const pctOf = (ts: number) => { const d = new Date(ts); return (d.getHours() * 60 + d.getMinutes()) / 1440 * 100; };
+    for (const lane of lanes) {
+      const row = el('div', { class: 'htl-day' });
+      append(row, el('div', { class: 'htl-lbl' }, lane.label));
+      for (const it of lane.items) {
+        const ts = it.e.timestamp || 0;
+        const startPct = pctOf(ts);
+        if (it.kind === 'sleeps' && it.e.end) {
+          const endPct = pctOf(it.e.end);
+          const cross = endPct <= startPct; // сон через полночь
+          const w = cross ? 100 - startPct : Math.max(1.5, endPct - startPct);
+          append(lane.track, el('div', { class: 'htl-ev sleep', style: 'left:' + startPct + '%;width:' + w + '%', title: fmtTime(ts) + '–' + fmtTime(it.e.end) + ' · ' + it.title + ' · ' + durStr(it.e.end - ts) }));
+          if (cross) {
+            const nk = dayKey(ts + DAY_MS);
+            const nl = lanes.find((l) => l.key === nk);
+            if (nl) append(nl.track, el('div', { class: 'htl-ev sleep', style: 'left:0;width:' + endPct + '%;', title: fmtTime(ts) + '–' + fmtTime(it.e.end) + ' · ' + it.title + ' · ' + durStr(it.e.end - ts) }));
+          }
+        } else {
+          const cls = it.kind === 'feeds' ? 'feed' : 'ev';
+          append(lane.track, el('div', { class: 'htl-ev ' + cls, style: 'left:' + startPct + '%', title: fmtTime(ts) + ' · ' + it.title + (it.sub ? ' · ' + it.sub : '') }));
+        }
       }
-      append(day, tl);
-      append(card, day);
+      if (!lane.track.querySelector('.htl-ev')) append(lane.track, el('span', { class: 'htl-empty' }, 'нет записей'));
+      append(row, lane.track);
+      append(htl, row);
     }
+    append(card, htl);
+    append(card, el('div', { class: 'htl-legend' },
+      el('span', {}, el('span', { class: 'lg' }), 'кормление'),
+      el('span', {}, el('span', { class: 'lg sleep' }), 'сон'),
+      el('span', {}, el('span', { class: 'lg ev' }), 'событие')));
+    const more = el('button', { class: 'ask-btn' }, 'Показать ещё 3 дня');
+    more.addEventListener('click', () => { htlDays += 3; renderDash(); });
+    append(card, more);
     byKey.timeline = card;
   }
   // Порядок на Главной: сводка → напоминания → хроника (на всю ширину) → профиль → задачи → навыки → план
