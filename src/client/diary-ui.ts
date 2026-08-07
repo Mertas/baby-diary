@@ -211,30 +211,31 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .card.week .card-h { background: #f6eeda; }
 .card.span2 { grid-column: 1 / -1; }
 /* Хроника: горизонтальный таймлайн — дни дорожками, события по времени суток */
-.htl { overflow-x: auto; padding: 10px 18px 4px; }
+.htl { overflow-x: auto; padding: 12px 18px 4px; }
 .htl-grid, .htl-day { position: relative; min-width: 640px; }
-.htl-grid { height: 14px; border-bottom: 1px dashed var(--border); }
-.htl-h { position: absolute; top: 0; font-size: 9px; color: var(--text-soft); transform: translateX(-50%); }
-.htl-day { display: flex; align-items: center; gap: 12px; padding: 3px 0; }
-.htl-lbl { width: 104px; flex-shrink: 0; font-size: 11px; color: var(--text-dim); text-align: right; letter-spacing: 0.02em; }
-.htl-track { position: relative; flex: 1; height: 26px; border-bottom: 1px solid #f2ede4; background: repeating-linear-gradient(90deg, transparent 0, transparent calc(25% - 1px), #f4efe6 calc(25% - 1px), #f4efe6 25%); }
-.htl-ev { position: absolute; top: 50%; cursor: pointer; }
-.htl-ev.feed { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); transform: translate(-50%, -50%); }
-.htl-ev.sleep { height: 12px; border-radius: 6px; background: #5b8def; opacity: 0.85; transform: translateY(-50%); }
-.htl-ev.ev { width: 9px; height: 9px; background: #8e6fd8; transform: translate(-50%, -50%) rotate(45deg); }
-.htl-ev.feed:hover, .htl-ev.ev:hover { transform: translate(-50%, -50%) rotate(0deg) scale(1.35); box-shadow: 0 0 0 3px rgba(232, 98, 42, 0.15); z-index: 2; }
+.htl-grid { height: 16px; border-bottom: 1px dashed var(--border); }
+.htl-h { position: absolute; top: 0; font-size: 10px; color: var(--text-soft); transform: translateX(-50%); }
+.htl-day { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
+.htl-lbl { width: 112px; flex-shrink: 0; font-size: 12px; color: var(--text-dim); text-align: right; letter-spacing: 0.02em; }
+.htl-track { position: relative; flex: 1; height: 44px; border-bottom: 1px solid #f2ede4; background: repeating-linear-gradient(90deg, transparent 0, transparent calc(25% - 1px), #f4efe6 calc(25% - 1px), #f4efe6 25%); }
+.htl-ev { position: absolute; top: 50%; cursor: pointer; z-index: 1; }
+.htl-ev.feed { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); transform: translate(-50%, -50%); z-index: 2; }
+.htl-ev.sleep { height: 18px; border-radius: 9px; background: #5b8def; opacity: 0.85; transform: translateY(-50%); }
+.htl-ev.ev { width: 11px; height: 11px; background: #8e6fd8; transform: translate(-50%, -50%) rotate(45deg); z-index: 2; }
+.htl-ev:hover { z-index: 4; }
+.htl-ev.feed:hover, .htl-ev.ev:hover { transform: translate(-50%, -50%) rotate(0deg) scale(1.3); box-shadow: 0 0 0 3px rgba(232, 98, 42, 0.15); }
 .htl-ev.sleep:hover { opacity: 1; box-shadow: 0 0 0 2px rgba(91, 141, 239, 0.25); }
 .htl-ev.ev:hover { box-shadow: 0 0 0 3px rgba(142, 111, 216, 0.18); }
-.htl-empty { position: absolute; left: 0; top: 50%; transform: translateY(-50%); font-size: 10px; color: #d9d1c3; }
-.htl-legend { display: flex; gap: 16px; align-items: center; padding: 2px 18px 10px; font-size: 10px; color: var(--text-soft); }
-.htl-legend .lg { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
-.htl-legend .lg.sleep { height: 8px; border-radius: 4px; background: #5b8def; }
+.htl-empty { position: absolute; left: 0; top: 50%; transform: translateY(-50%); font-size: 11px; color: #d9d1c3; }
+.htl-legend { display: flex; gap: 16px; align-items: center; padding: 4px 18px 10px; font-size: 11px; color: var(--text-soft); }
+.htl-legend .lg { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+.htl-legend .lg.sleep { height: 9px; border-radius: 5px; background: #5b8def; }
 .htl-legend .lg.ev { transform: rotate(45deg); background: #8e6fd8; }
 /* Летающий тултип (как в Megabrain2): один общий элемент, перелетает между целями */
 .flytip { position: fixed; z-index: 9999; background: #43392e; color: #fdf8ef; font-size: 12px; line-height: 1.5; padding: 8px 12px; border-radius: 9px; max-width: 300px; pointer-events: none; opacity: 0; transition: opacity 0.15s ease, left 0.28s cubic-bezier(0.22, 0.9, 0.3, 1.25), top 0.28s cubic-bezier(0.22, 0.9, 0.3, 1.25); box-shadow: 0 8px 22px rgba(50, 30, 10, 0.28); }
 .flytip.on { opacity: 1; }
 .flytip::after { content: ''; position: absolute; left: 50%; bottom: -5px; width: 10px; height: 10px; background: #43392e; transform: translateX(-50%) rotate(45deg); border-radius: 2px; }
-.flytip.above::after { bottom: auto; top: -5px; }
+.flytip.below::after { bottom: auto; top: -5px; }
 /* ─── Адаптив: десктоп = контент + чат-сайдбар; планшет/мобайл = одна колонка ─── */
 @media (min-width: 1024px) {
   #app { display: grid; grid-template-columns: minmax(0, 1100px) 400px; grid-template-rows: auto auto auto minmax(0, 1fr); max-width: 1560px; margin: 0 auto; border: none; }
@@ -471,7 +472,7 @@ const flytip = (() => {
     const above = r.top - h - 10 > 8;
     const x = Math.max(8, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - w - 8));
     const y = above ? r.top - h - 10 : r.bottom + 10;
-    t.classList.toggle('above', above);
+    t.classList.toggle('below', !above); // стрелка вниз (по умолчанию) — тултип над целью; вверх — под целью
     t.style.left = x + 'px';
     t.style.top = y + 'px';
   }
