@@ -202,15 +202,22 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .cal-day .cal-item { margin-bottom: 4px; }
 /* ─── Адаптив: десктоп = контент + чат-сайдбар; планшет/мобайл = одна колонка ─── */
 @media (min-width: 1024px) {
-  #app { display: grid; grid-template-columns: minmax(0, 1fr) 380px; grid-template-rows: auto auto auto minmax(0, 1fr); max-width: none; margin: 0; border: none; }
-  .brand { grid-column: 1; grid-row: 1; }
-  .actions { grid-column: 1; grid-row: 2; }
-  .tabs { grid-column: 1; grid-row: 3; }
-  .content { grid-column: 1; grid-row: 4; justify-self: center; width: 100%; max-width: 980px; padding: 18px 24px 48px; }
-  .content .card { max-width: 980px; }
+  #app { display: grid; grid-template-columns: minmax(0, 1100px) 400px; grid-template-rows: auto auto auto minmax(0, 1fr); max-width: 1560px; margin: 0 auto; border: none; }
+  .brand { grid-column: 1; grid-row: 1; text-align: left; padding: 26px 28px 8px; }
+  .brand .meta { justify-content: flex-start; }
+  .brand .hint { text-align: left; }
+  .actions { grid-column: 1; grid-row: 2; justify-content: flex-start; padding: 12px 28px; }
+  .tabs { grid-column: 1; grid-row: 3; padding-left: 24px; }
+  .content { grid-column: 1; grid-row: 4; padding: 16px 28px 48px; }
+  /* Главная: карточки в две колонки, плашки — компактной сеткой */
+  #c-dash.active { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 18px; align-items: start; }
+  #c-dash .banners { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 0 0 10px; }
+  #c-dash .card { margin-bottom: 14px; }
+  /* Текстовые разделы — читаемая ширина, карточки не растягиваются */
+  #c-tips, #c-recipes, #c-skills, #c-spurts, #c-clothes, #c-sad, #c-shopping { max-width: 840px; }
   .chat-panel { grid-column: 2; grid-row: 1 / 5; border-top: none; border-left: 1px solid var(--border); max-height: none; }
   .chat-msgs { flex: 1; min-height: 0; }
-  .brand { padding-top: 28px; }
+  .msg { max-width: 88%; }
 }
 @media (min-width: 768px) and (max-width: 1023px) {
   #app { max-width: 780px; }
