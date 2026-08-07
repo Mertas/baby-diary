@@ -210,6 +210,23 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .card.week { background: #fffdf4; border-color: #e6dcc0; }
 .card.week .card-h { background: #f6eeda; }
 .card.span2 { grid-column: 1 / -1; }
+/* Хроника: каждый день — временная линия с событиями */
+.tl-day { padding: 2px 0 6px; }
+.tl-day-h { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 18px 2px; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-soft); background: #faf6ee; border-bottom: 1px solid var(--border); }
+.tl-day-c { font-size: 10px; letter-spacing: 0.04em; text-transform: none; }
+.tl { position: relative; margin: 2px 0 6px 22px; padding: 2px 0 8px 36px; border-left: 2px solid #e6ded0; }
+.tl-item { position: relative; display: flex; gap: 10px; align-items: flex-start; padding: 8px 14px 8px 4px; }
+.tl-item:hover { background: rgba(0, 0, 0, 0.025); }
+.tl-item::before { content: ''; position: absolute; left: -43px; top: 13px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface); box-shadow: 0 0 0 1px rgba(232, 98, 42, 0.25); }
+.tl-item.sleeps::before { background: #5b8def; box-shadow: 0 0 0 1px rgba(91, 141, 239, 0.25); }
+.tl-item.events::before { background: #8e6fd8; box-shadow: 0 0 0 1px rgba(142, 111, 216, 0.25); }
+.tl-time { font-size: 11px; color: var(--text-soft); font-variant-numeric: tabular-nums; min-width: 34px; padding-top: 1px; }
+.tl-ico { font-size: 13px; width: 18px; text-align: center; }
+.tl-body { flex: 1; }
+.tl-title { font-size: 13px; font-weight: 500; }
+.tl-sub { font-size: 11px; color: var(--text-dim); margin-top: 1px; }
+.tl-del { margin-left: auto; background: none; border: none; color: var(--text-soft); cursor: pointer; font-size: 11px; padding: 2px 4px; align-self: center; flex-shrink: 0; }
+.tl-del:hover { color: #c0392b; }
 /* ─── Адаптив: десктоп = контент + чат-сайдбар; планшет/мобайл = одна колонка ─── */
 @media (min-width: 1024px) {
   #app { display: grid; grid-template-columns: minmax(0, 1100px) 400px; grid-template-rows: auto auto auto minmax(0, 1fr); max-width: 1560px; margin: 0 auto; border: none; }
@@ -610,23 +627,43 @@ function renderDash() {
 
   if (all.length) {
     const card = el('div', { class: 'card span2' }); append(card, el('div', { class: 'card-h' }, 'Хроника'));
-    let curDay = '';
-    for (const it of all.slice(0, 40)) {
+    // День = временная линия: дни от новых к старым, события внутри дня по времени (восходящая линия)
+    const days: { key: string; items: any[] }[] = [];
+    for (const it of all) {
       const k = dayKey(it.e.timestamp);
-      if (k !== curDay) {
-        curDay = k;
-        append(card, el('div', { class: 'day-head' }, dayTitle(k)));
+      let g = days.find((x) => x.key === k);
+      if (!g) { g = { key: k, items: [] }; days.push(g); }
+      g.items.push(it);
+    }
+    days.sort((a, b) => (a.key < b.key ? 1 : -1));
+    for (const g of days) g.items.sort((a, b) => (a.e.timestamp || 0) - (b.e.timestamp || 0));
+    let shown = 0;
+    for (const g of days) {
+      if (shown >= 40) break;
+      const cnt = Math.min(g.items.length, 40 - shown);
+      shown += cnt;
+      const day = el('div', { class: 'tl-day' });
+      append(day, el('div', { class: 'tl-day-h' }, dayTitle(g.key), el('span', { class: 'tl-day-c' }, cnt + ' запис' + (cnt % 10 === 1 && cnt % 100 !== 11 ? 'ь' : cnt % 10 >= 2 && cnt % 10 <= 4 && (cnt % 100 < 12 || cnt % 100 > 14) ? 'и' : 'ей'))));
+      const tl = el('div', { class: 'tl' });
+      for (const it of g.items.slice(0, cnt)) {
+        const row = el('div', { class: 'tl-item ' + it.kind });
+        append(row, el('span', { class: 'tl-time' }, fmtTime(it.e.timestamp)), el('span', { class: 'tl-ico' }, it.icon));
+        const body = el('div', { class: 'tl-body' });
+        append(body, el('div', { class: 'tl-title' }, it.title));
+        if (it.sub) append(body, el('div', { class: 'tl-sub' }, it.sub));
+        append(row, body);
+        const del = el('button', { class: 'tl-del', title: 'Удалить запись' }, '✕');
+        del.addEventListener('click', () => {
+          if (!confirm('Удалить эту запись?')) return;
+          const arr = it.kind === 'feeds' ? (S.feeds || []) : it.kind === 'sleeps' ? (S.sleeps || []) : (S.events || []);
+          const next = arr.slice(); next.splice(it.i, 1);
+          saveState({ feeds: it.kind === 'feeds' ? next : S.feeds || [], sleeps: it.kind === 'sleeps' ? next : S.sleeps || [], events: it.kind === 'events' ? next : S.events || [] });
+        });
+        append(row, del);
+        append(tl, row);
       }
-      const row = el('div', { class: 'event-row' }, el('span', { class: 'e-ico' }, it.icon), el('span', { class: 'e-time' }, fmtTime(it.e.timestamp)), el('div', {}, el('div', { class: 'e-title' }, it.title), el('div', { class: 'e-sub' }, it.sub)));
-      const del = el('button', { class: 'row-del', title: 'Удалить запись' }, '✕');
-      del.addEventListener('click', () => {
-        if (!confirm('Удалить эту запись?')) return;
-        const arr = it.kind === 'feeds' ? (S.feeds || []) : it.kind === 'sleeps' ? (S.sleeps || []) : (S.events || []);
-        const next = arr.slice(); next.splice(it.i, 1);
-        saveState({ feeds: it.kind === 'feeds' ? next : S.feeds || [], sleeps: it.kind === 'sleeps' ? next : S.sleeps || [], events: it.kind === 'events' ? next : S.events || [] });
-      });
-      append(row, del);
-      append(card, row);
+      append(day, tl);
+      append(card, day);
     }
     byKey.timeline = card;
   }
