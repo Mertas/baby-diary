@@ -230,6 +230,11 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .htl-legend .lg { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
 .htl-legend .lg.sleep { height: 8px; border-radius: 4px; background: #5b8def; }
 .htl-legend .lg.ev { transform: rotate(45deg); background: #8e6fd8; }
+/* Летающий тултип (как в Megabrain2): один общий элемент, перелетает между целями */
+.flytip { position: fixed; z-index: 9999; background: #43392e; color: #fdf8ef; font-size: 12px; line-height: 1.5; padding: 8px 12px; border-radius: 9px; max-width: 300px; pointer-events: none; opacity: 0; transition: opacity 0.15s ease, left 0.28s cubic-bezier(0.22, 0.9, 0.3, 1.25), top 0.28s cubic-bezier(0.22, 0.9, 0.3, 1.25); box-shadow: 0 8px 22px rgba(50, 30, 10, 0.28); }
+.flytip.on { opacity: 1; }
+.flytip::after { content: ''; position: absolute; left: 50%; bottom: -5px; width: 10px; height: 10px; background: #43392e; transform: translateX(-50%) rotate(45deg); border-radius: 2px; }
+.flytip.above::after { bottom: auto; top: -5px; }
 /* ─── Адаптив: десктоп = контент + чат-сайдбар; планшет/мобайл = одна колонка ─── */
 @media (min-width: 1024px) {
   #app { display: grid; grid-template-columns: minmax(0, 1100px) 400px; grid-template-rows: auto auto auto minmax(0, 1fr); max-width: 1560px; margin: 0 auto; border: none; }
@@ -450,6 +455,55 @@ function askFooter(prompt: string): HTMLElement {
   return b;
 }
 
+/* ─── Летающий тултип (как в Megabrain2): один элемент, перелетает между целями ─── */
+const flytip = (() => {
+  let el: HTMLElement | null = null;
+  let hideT = 0;
+  function ensure(): HTMLElement {
+    if (!el) { el = document.createElement('div'); el.className = 'flytip'; document.body.appendChild(el); }
+    return el;
+  }
+  function place(a: HTMLElement) {
+    const t = ensure();
+    const r = a.getBoundingClientRect();
+    const w = t.offsetWidth || 120;
+    const h = t.offsetHeight || 40;
+    const above = r.top - h - 10 > 8;
+    const x = Math.max(8, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - w - 8));
+    const y = above ? r.top - h - 10 : r.bottom + 10;
+    t.classList.toggle('above', above);
+    t.style.left = x + 'px';
+    t.style.top = y + 'px';
+  }
+  return {
+    show(a: HTMLElement, text: string) {
+      clearTimeout(hideT);
+      const t = ensure();
+      t.textContent = text;
+      t.classList.add('on');
+      place(a);
+    },
+    hide() {
+      const t = ensure();
+      hideT = window.setTimeout(() => { t.classList.remove('on'); }, 80);
+    },
+  };
+})();
+let flytipCur: HTMLElement | null = null;
+document.addEventListener('mouseover', (ev) => {
+  const tgt = ev.target as HTMLElement;
+  const t = tgt.closest ? tgt.closest('[data-tip]') as HTMLElement | null : null;
+  if (t && t !== flytipCur) { flytipCur = t; flytip.show(t, t.getAttribute('data-tip') || ''); }
+});
+document.addEventListener('mouseout', (ev) => {
+  const tgt = ev.target as HTMLElement;
+  const t = tgt.closest ? tgt.closest('[data-tip]') as HTMLElement | null : null;
+  if (t && t === flytipCur) {
+    const to = ev.relatedTarget as Node | null;
+    if (!to || !t.contains(to)) { flytipCur = null; flytip.hide(); }
+  }
+});
+
 function renderSkills() {
   const c = $('#c-skills'); if (!c) return; clear(c);
   const skills = S.skills || [];
@@ -660,15 +714,15 @@ function renderDash() {
           const endPct = pctOf(it.e.end);
           const cross = endPct <= startPct; // сон через полночь
           const w = cross ? 100 - startPct : Math.max(1.5, endPct - startPct);
-          append(lane.track, el('div', { class: 'htl-ev sleep', style: 'left:' + startPct + '%;width:' + w + '%', title: fmtTime(ts) + '–' + fmtTime(it.e.end) + ' · ' + it.title + ' · ' + durStr(it.e.end - ts) }));
+          append(lane.track, el('div', { class: 'htl-ev sleep', style: 'left:' + startPct + '%;width:' + w + '%', 'data-tip': fmtTime(ts) + '–' + fmtTime(it.e.end) + ' · ' + it.title + ' · ' + durStr(it.e.end - ts) }));
           if (cross) {
             const nk = dayKey(ts + DAY_MS);
             const nl = lanes.find((l) => l.key === nk);
-            if (nl) append(nl.track, el('div', { class: 'htl-ev sleep', style: 'left:0;width:' + endPct + '%;', title: fmtTime(ts) + '–' + fmtTime(it.e.end) + ' · ' + it.title + ' · ' + durStr(it.e.end - ts) }));
+            if (nl) append(nl.track, el('div', { class: 'htl-ev sleep', style: 'left:0;width:' + endPct + '%;', 'data-tip': fmtTime(ts) + '–' + fmtTime(it.e.end) + ' · ' + it.title + ' · ' + durStr(it.e.end - ts) }));
           }
         } else {
           const cls = it.kind === 'feeds' ? 'feed' : 'ev';
-          append(lane.track, el('div', { class: 'htl-ev ' + cls, style: 'left:' + startPct + '%', title: fmtTime(ts) + ' · ' + it.title + (it.sub ? ' · ' + it.sub : '') }));
+          append(lane.track, el('div', { class: 'htl-ev ' + cls, style: 'left:' + startPct + '%', 'data-tip': fmtTime(ts) + ' · ' + it.title + (it.sub ? ' · ' + it.sub : '') }));
         }
       }
       if (!lane.track.querySelector('.htl-ev')) append(lane.track, el('span', { class: 'htl-empty' }, 'нет записей'));
@@ -1127,7 +1181,7 @@ function calDelete(ev: any) {
   saveState({ calendar: [{ id: ev.id, title: ev.title, date: ev.date, time: ev.time, _delete: true }] });
 }
 function calItemEl(e: any): HTMLElement {
-  const it = el('div', { class: 'cal-item' + (e.important ? ' imp' : '') });
+  const it = el('div', { class: 'cal-item' + (e.important ? ' imp' : ''), 'data-tip': (e.time ? e.time + ' ' : '') + e.title + (e.recurring ? ' · повторяется' : '') + (e.important ? ' · важно' : '') + (e.note ? ' — ' + e.note : '') });
   const row = el('div', { class: 't' });
   append(row, el('span', {}, (e.time ? e.time + ' ' : '') + e.title + (e.recurring ? ' 🔁' : '') + (e.important ? ' ⭐' : '')));
   const del = el('button', { class: 'cal-del', title: 'Удалить' }, '✕');
@@ -1217,6 +1271,7 @@ function renderCalMonth(c: HTMLElement) {
     for (const e of evs.slice(0, 3)) {
       append(cell, el('div', {
         class: 'cal-ev' + (e.important ? ' imp' : '') + (e.recurring ? ' rec' : '') + (e.done ? ' done' : ''),
+        'data-tip': (e.time ? e.time + ' ' : '') + e.title + (e.recurring ? ' · повторяется' : '') + (e.important ? ' · важно' : '') + (e.note ? ' — ' + e.note : ''),
       }, (e.time ? e.time + ' ' : '') + e.title));
     }
     if (evs.length > 3) append(cell, el('div', { class: 'cal-more' }, '+' + (evs.length - 3)));
