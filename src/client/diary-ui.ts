@@ -322,6 +322,7 @@ function renderAll() {
   renderRecipes();
   renderSpurts();
   renderClothes();
+  checkDueReminders();
   renderSad();
   renderShopping();
 }
@@ -920,3 +921,44 @@ loadState();
 window.__runtime_subscribe('/chat/state', (raw: string) => {
   try { const d = JSON.parse(raw); if (d.type === 'state' && d.state) { S = d.state; renderAll(); } } catch { /* ignore */ }
 });
+
+// ─── Напоминания: уведомления (Notification API) ───
+// Проверка при каждом обновлении state (renderAll) + каждые 60 сек.
+// Срабатывают reminders с датой <= сегодня и !done; повторная отправка
+// одного и того же исключается localStorage-флагом (bd_notified_v1).
+const NOTIF_KEY = 'bd_notified_v1';
+function notifiedSet(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(NOTIF_KEY) || '[]')); } catch { return new Set(); }
+}
+function saveNotified(s: Set<string>) {
+  try { localStorage.setItem(NOTIF_KEY, JSON.stringify([...s].slice(-200))); } catch { /* ignore */ }
+}
+function checkDueReminders() {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  const rems = (S.reminders || []) as any[];
+  if (!rems.length) return;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const seen = notifiedSet();
+  let changed = false;
+  for (const r of rems) {
+    if (r.done || !r.date || typeof r.date !== 'string') continue; // без даты — чек-лист, не будильник
+    const d = new Date(r.date + 'T00:00:00');
+    if (isNaN(d.getTime()) || d.getTime() > today.getTime()) continue; // будущее — ждём
+    const key = r.date + '|' + (r.text || '');
+    if (seen.has(key)) continue;
+    try { new Notification('Baby Diary', { body: r.text || 'Напоминание', tag: 'bd:' + key }); } catch { /* ignore */ }
+    seen.add(key); changed = true;
+  }
+  if (changed) saveNotified(seen);
+}
+function requestNotifPermission() {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'default') return;
+  try { Notification.requestPermission(); } catch { /* ignore */ }
+}
+requestNotifPermission();
+// Повторный запрос разрешения при первом взаимодействии (если браузер его требует)
+window.addEventListener('pointerdown', function once() {
+  requestNotifPermission();
+  window.removeEventListener('pointerdown', once);
+});
+setInterval(checkDueReminders, 60000);
