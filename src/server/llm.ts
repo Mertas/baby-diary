@@ -112,6 +112,15 @@ export function parseLlmResponse(raw: string): LlmResponse | null {
     }
   }
 
+  // Ответ мог быть обрезан лимитом токенов (state молча терялся): пробуем закрыть
+  // незакрытые скобки в конце — сработает, если обрыв пришёлся на границу объекта.
+  for (let k = 1; k <= 8; k++) {
+    try {
+      const p = JSON.parse(text + '}'.repeat(k)) as LlmResponse;
+      if (p && p.text) return p;
+    } catch { /* continue */ }
+  }
+
   const textMatch = text.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/);
   if (!textMatch) return null;
 
@@ -166,7 +175,7 @@ export async function handlePrompt(chatId: string, prompt: string, modelName: st
     messages.push({ role: 'user', content: prompt });
 
     const stream = await openai.chat.completions.create(
-      { model: modelName || DEEPSEEK_MODEL, messages, stream: true },
+      { model: modelName || DEEPSEEK_MODEL, messages, stream: true, max_tokens: 8192 },
       { signal: aborter.signal },
     );
 
@@ -187,7 +196,7 @@ export async function handlePrompt(chatId: string, prompt: string, modelName: st
         { role: 'user', content: 'Ты ответила обычным текстом, но данные не сохранились. Верни ответ ТОЛЬКО в формате JSON: {"text":"что сказать","state":{...данные которые нужно сохранить...}}. Если данных для state нет — верни {"text":"...","state":{}}. Схема state — строго как в системном промпте: кормления в feeds (amount числом), сны в sleeps, остальное в events; время — текстом в time/start/end.' },
       );
       const retryStream = await openai.chat.completions.create(
-        { model: modelName || DEEPSEEK_MODEL, messages: retryMsgs, stream: true },
+        { model: modelName || DEEPSEEK_MODEL, messages: retryMsgs, stream: true, max_tokens: 8192 },
         { signal: aborter.signal },
       );
       let retryResp = '';
