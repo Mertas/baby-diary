@@ -21,16 +21,21 @@ const FEED_TYPE_MAP: Record<string, string> = {
 function parseTimeHint(hint: unknown, now: number): number {
   if (typeof hint !== 'string' || !hint.trim()) return Math.floor(now / 60000) * 60000;
   const s = hint.trim().toLowerCase();
-  // Дата «25.09» / «25.09.2026» / «25.09 10:30» — сдвиг от today на указанный день (не «вчера»).
+  // Дата «25.09» / «25.09.2026» / «25.09 10:30» — с точкой-разделителем (время — с двоеточием «10:30»).
+  // «05.06» = 5 июня; «5.30» = не дата (месяца 30 нет) → время 5:30.
+  const hasColon = s.includes(':');
   const dm = s.match(/(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?(?:\s+(\d{1,2}):(\d{2}))?/);
-  if (dm && parseInt(dm[1], 10) > 23) {
+  if (dm) {
     const day = parseInt(dm[1], 10), mon = parseInt(dm[2], 10);
-    const yr = dm[3] ? (parseInt(dm[3], 10) < 100 ? 2000 + parseInt(dm[3], 10) : parseInt(dm[3], 10)) : new Date(now).getFullYear();
-    const d = new Date(yr, mon - 1, day);
-    if (!isNaN(d.getTime())) {
-      let ts = d.getTime();
-      if (dm[4]) ts += parseInt(dm[4], 10) * 3600000 + parseInt(dm[5], 10) * 60000;
-      return ts;
+    const isDate = day > 23 || (mon >= 1 && mon <= 12 && !hasColon);
+    if (isDate && mon >= 1 && mon <= 12 && day >= 1 && day <= 31) {
+      const yr = dm[3] ? (parseInt(dm[3], 10) < 100 ? 2000 + parseInt(dm[3], 10) : parseInt(dm[3], 10)) : new Date(now).getFullYear();
+      const d = new Date(yr, mon - 1, day);
+      if (!isNaN(d.getTime())) {
+        let ts = d.getTime();
+        if (dm[4]) ts += parseInt(dm[4], 10) * 3600000 + parseInt(dm[5], 10) * 60000;
+        return ts;
+      }
     }
   }
   const m = s.match(/(\d{1,2})[:.](\d{2})/);
