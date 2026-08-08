@@ -118,14 +118,20 @@ export function sanitizeStateEvents(state: Record<string, unknown>): Record<stri
     const sleeps = Array.isArray(out.sleeps) ? out.sleeps : [];
     const rest: unknown[] = [];
     for (const e of out.events) {
-      const t = e && typeof e === 'object' && typeof (e as Record<string, unknown>).type === 'string'
-        ? String((e as Record<string, unknown>).type).toLowerCase() : '';
-      if (t === 'feed' || t === 'feeding' || t === 'кормление') {
-        const f = { ...(e as Record<string, unknown>) };
+      const rec = (e && typeof e === 'object') ? (e as Record<string, unknown>) : {};
+      const t = typeof rec.type === 'string' ? String(rec.type).toLowerCase() : '';
+      const title = typeof rec.title === 'string' ? String(rec.title).toLowerCase() : '';
+      // Дрейф бывает и по title («Кормление» в events вместо feeds)
+      if (t === 'feed' || t === 'feeding' || t === 'кормление' || title === 'кормление' || title.includes('кормление')) {
+        const f = { ...rec };
         delete f.type;
         if (f.amount != null) {
           const n = parseFloat(String(f.amount).replace(/[^\d.,]/g, '').replace(',', '.'));
           if (!isNaN(n)) f.amount = n;
+        } else if (typeof f.note === 'string') {
+          // Объём спрятан в note: «Смесь 110 мл»
+          const nm = f.note.match(/(\d+)\s*мл/);
+          if (nm) f.amount = parseFloat(nm[1]);
         }
         if (typeof f.note === 'string' && !f.type) {
           const nl = f.note.toLowerCase();
@@ -135,7 +141,7 @@ export function sanitizeStateEvents(state: Record<string, unknown>): Record<stri
         }
         if (!f.type) f.type = 'смесь'; // type 'feed' без уточнения — смесь по умолчанию
         feeds.push(f);
-      } else if (t === 'sleep' || t === 'nap' || t === 'night' || t === 'сон') {
+      } else if (t === 'sleep' || t === 'nap' || t === 'night' || t === 'сон' || title === 'сон' || title.includes('уснул') || title.includes('заснул')) {
         const s = { ...(e as Record<string, unknown>) };
         delete s.type; // основной цикл сам выведет nap/night по часу
         delete s.time;
@@ -188,8 +194,23 @@ export function sanitizeStateEvents(state: Record<string, unknown>): Record<stri
           o.type = (h >= 21 || h < 7) ? 'night' : 'nap';
         }
         if (o.end != null) {
-          let end = typeof o.end === 'number' && !isNaN(o.end) ? o.end : parseTimeHint(String(o.end), now);
-          if (typeof o.end === 'number' && !isNaN(o.end)) end = Math.floor(end / 60000) * 60000;
+          let end: number;
+          if (typeof o.end === 'number' && !isNaN(o.end)) {
+            end = Math.floor(o.end / 60000) * 60000;
+          } else {
+            // end — время СУТОК. parseTimeHint сдвигает «ещё не наступившее» на вчера —
+            // для end это неверно (сон 12:10–13:40, обрабатываемый в 12:35, терял бы end).
+            // Ставим end на день начала сна; если end <= start — сон через полночь (+1 день).
+            const s = String(o.end).trim().toLowerCase();
+            const m = s.match(/(\d{1,2})[:.](\d{2})/);
+            if (m) {
+              const day0 = new Date(ts); day0.setHours(0, 0, 0, 0);
+              end = day0.getTime() + parseInt(m[1], 10) * 3600000 + parseInt(m[2], 10) * 60000;
+              if (end <= ts) end += 86400000;
+            } else {
+              end = Math.floor(now / 60000) * 60000;
+            }
+          }
           if (end > now + 86400000) end = now; // end в будущем — считаем «сейчас»
           if (end <= ts) delete o.end; else o.end = end;
         }
