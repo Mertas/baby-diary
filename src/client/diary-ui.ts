@@ -731,14 +731,31 @@ function renderDash() {
 
   if (all.length) {
     const card = el('div', { class: 'card span2' }); append(card, el('div', { class: 'card-h' }, 'Хроника'));
-    // Горизонтальный таймлайн: последние htlDays дней дорожками, события — по времени суток
+    // Горизонтальный таймлайн: дни С СОБЫТИЯМИ (последние htlDays), плюс дозаполнение
+    // календарными днями перед самым старым — иначе редкие события (визиты раз в месяц)
+    // выпадают из окна и таймлайн выглядит пустым.
     const nowD = new Date(); nowD.setHours(0, 0, 0, 0);
+    const daySet = new Set<string>();
+    for (const it of all) daySet.add(dayKey(it.e.timestamp));
+    let dayKeys = [...daySet].sort((a, b) => (a < b ? 1 : -1)).slice(0, htlDays);
+    if (dayKeys.length < htlDays) {
+      // дополнить календарными днями перед самым старым днём с событием
+      const oldest = dayKeys.length ? dayKeys[dayKeys.length - 1] : iso(nowD);
+      const oldestD = new Date(oldest + 'T00:00:00');
+      for (let i = 1; dayKeys.length < htlDays && i <= 14; i++) {
+        const k = iso(new Date(oldestD.getTime() - i * DAY_MS));
+        if (!daySet.has(k)) dayKeys.push(k);
+      }
+    }
     const lanes: { key: string; label: string; track: HTMLElement; items: any[] }[] = [];
-    for (let i = htlDays - 1; i >= 0; i--) {
-      const d = new Date(nowD.getTime() - i * DAY_MS);
-      const key = iso(d);
+    for (const key of dayKeys) {
+      const d = new Date(key + 'T00:00:00');
       const idx = d.getDay() === 0 ? 6 : d.getDay() - 1;
-      const label = i === 0 ? 'Сегодня' : i === 1 ? 'Вчера' : i === 2 ? 'Позавчера' : fmtDay(d) + ' ' + WD[idx];
+      let label: string;
+      if (key === dayKey(nowD.getTime())) label = 'Сегодня';
+      else if (key === dayKey(nowD.getTime() - DAY_MS)) label = 'Вчера';
+      else if (key === dayKey(nowD.getTime() - 2 * DAY_MS)) label = 'Позавчера';
+      else label = fmtDay(d) + ' ' + WD[idx];
       lanes.push({ key, label, track: el('div', { class: 'htl-track' }), items: [] });
     }
     for (const it of all) {
@@ -788,8 +805,8 @@ function renderDash() {
       el('span', {}, el('span', { class: 'lg' }), 'кормление'),
       el('span', {}, el('span', { class: 'lg sleep' }), 'сон'),
       el('span', {}, el('span', { class: 'lg ev' }), 'событие')));
-    const more = el('button', { class: 'ask-btn' }, 'Показать ещё 3 дня');
-    more.addEventListener('click', () => { htlDays += 3; renderDash(); });
+    const more = el('button', { class: 'ask-btn' }, 'Показать ещё 10 дней');
+    more.addEventListener('click', () => { htlDays += 10; renderDash(); });
     append(card, more);
     byKey.timeline = card;
   }

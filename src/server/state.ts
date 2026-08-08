@@ -21,6 +21,18 @@ const FEED_TYPE_MAP: Record<string, string> = {
 function parseTimeHint(hint: unknown, now: number): number {
   if (typeof hint !== 'string' || !hint.trim()) return Math.floor(now / 60000) * 60000;
   const s = hint.trim().toLowerCase();
+  // Дата «25.09» / «25.09.2026» / «25.09 10:30» — сдвиг от today на указанный день (не «вчера»).
+  const dm = s.match(/(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?(?:\s+(\d{1,2}):(\d{2}))?/);
+  if (dm && parseInt(dm[1], 10) > 23) {
+    const day = parseInt(dm[1], 10), mon = parseInt(dm[2], 10);
+    const yr = dm[3] ? (parseInt(dm[3], 10) < 100 ? 2000 + parseInt(dm[3], 10) : parseInt(dm[3], 10)) : new Date(now).getFullYear();
+    const d = new Date(yr, mon - 1, day);
+    if (!isNaN(d.getTime())) {
+      let ts = d.getTime();
+      if (dm[4]) ts += parseInt(dm[4], 10) * 3600000 + parseInt(dm[5], 10) * 60000;
+      return ts;
+    }
+  }
   const m = s.match(/(\d{1,2})[:.](\d{2})/);
   if (!m) return Math.floor(now / 60000) * 60000; // «ночью», «утром», «только что» — текущая минута (квантуем: иначе каждый переизданный «только что» даёт новый timestamp и ломает дедуп)
   const h = parseInt(m[1], 10), min = parseInt(m[2], 10);
