@@ -18,8 +18,8 @@ const FEED_TYPE_MAP: Record<string, string> = {
   прикорм: 'прикорм', puree: 'прикорм', solid: 'прикорм',
 };
 
-function parseTimeHint(hint: unknown, now: number): number {
-  if (typeof hint !== 'string' || !hint.trim()) return Math.floor(now / 60000) * 60000;
+function parseTimeHint(hint: unknown, now: number, dayBase?: number): number {
+  if (typeof hint !== 'string' || !hint.trim()) return dayBase != null ? dayBase + (now % 86400000) : Math.floor(now / 60000) * 60000;
   const s = hint.trim().toLowerCase();
   // Дата «25.09» / «25.09.2026» / «25.09 10:30» — с точкой-разделителем (время — с двоеточием «10:30»).
   // «05.06» = 5 июня; «5.30» = не дата (месяца 30 нет) → время 5:30.
@@ -39,8 +39,18 @@ function parseTimeHint(hint: unknown, now: number): number {
     }
   }
   const m = s.match(/(\d{1,2})[:.](\d{2})/);
-  if (!m) return Math.floor(now / 60000) * 60000; // «ночью», «утром», «только что» — текущая минута (квантуем: иначе каждый переизданный «только что» даёт новый timestamp и ломает дедуп)
+  if (!m) {
+    // «ночью», «утром», «только что» — без времени: день мамы (если задан) или сейчас
+    return dayBase != null ? dayBase + (now % 86400000) : Math.floor(now / 60000) * 60000;
+  }
   const h = parseInt(m[1], 10), min = parseInt(m[2], 10);
+  if (dayBase != null) {
+    // день мамы: время парсится от её дня, без сдвига «будущее → вчера»
+    let base = dayBase;
+    if (/позавчера/.test(s)) base -= 2 * 86400000;
+    else if (/вчера/.test(s)) base -= 86400000;
+    return base + h * 3600000 + min * 60000;
+  }
   const day0 = new Date(now); day0.setHours(0, 0, 0, 0);
   let base = day0.getTime();
   if (/позавчера/.test(s)) base -= 2 * 86400000;
@@ -54,6 +64,7 @@ const RECURRING_MAP: Record<string, string> = {
   daily: 'daily', 'ежедневно': 'daily', 'каждый день': 'daily', 'ежедневный': 'daily',
   weekly: 'weekly', 'еженедельно': 'weekly', 'каждую неделю': 'weekly', 'раз в неделю': 'weekly',
   monthly: 'monthly', 'ежемесячно': 'monthly', 'каждый месяц': 'monthly', 'раз в месяц': 'monthly',
+  yearly: 'yearly', 'ежегодно': 'yearly', 'каждый год': 'yearly', 'раз в год': 'yearly', 'день рождения': 'yearly',
 };
 function calId(title: string, date: string, time: string): string {
   let h = 0;
@@ -123,7 +134,21 @@ function eventKey(o: Record<string, unknown>): string {
   if (typeof o.amount !== 'undefined') return `fd|${ts}|${type}|${o.amount}`;
   return `ev|${ts}|${o.title ?? o.note ?? ''}`;
 }
-export function sanitizeStateEvents(state: Record<string, unknown>): Record<string, unknown> {
+export function extractMomDay(text: string): number | undefined {
+  // «сегодня 20.07» / «сегодня 20.07.2026» / «сегодня 20 июля» — день мамы
+  const m = text.match(/сегодня\s+(\d{1,2})[.\/](\d{1,2})(?:[.\/](\d{2,4}))?/i);
+  if (m) {
+    const day = parseInt(m[1], 10), mon = parseInt(m[2], 10);
+    if (mon >= 1 && mon <= 12 && day >= 1 && day <= 31) {
+      const yr = m[3] ? (parseInt(m[3], 10) < 100 ? 2000 + parseInt(m[3], 10) : parseInt(m[3], 10)) : new Date().getFullYear();
+      const d = new Date(yr, mon - 1, day);
+      if (!isNaN(d.getTime())) { d.setHours(0, 0, 0, 0); return d.getTime(); }
+    }
+  }
+  return undefined;
+}
+
+export function sanitizeStateEvents(state: Record<string, unknown>, dayBase?: number): Record<string, unknown> {
   const out: Record<string, unknown> = { ...state };
   const now = Date.now();
   if ('calendar' in out) out.calendar = sanitizeCalendar(out.calendar);
@@ -181,7 +206,7 @@ export function sanitizeStateEvents(state: Record<string, unknown>): Record<stri
       // Модель пишет время то в `time`, то в `start` — принимаем оба
       let ts = typeof o.timestamp === 'number' && !isNaN(o.timestamp) ? o.timestamp : NaN;
       if (isNaN(ts) || Math.abs(ts - now) > 400 * 86400000) {
-        ts = parseTimeHint(o.time ?? o.start, now);
+        ts = parseTimeHint(o.time ?? o.start, now, dayBase);
       } else {
         // Числовой timestamp от модели — «сейчас» с миллисекундами; при каждом переиздании
         // события он новый (19:59:11 → 19:59:18 → ...) и ломает дедуп. Приложение живёт
@@ -331,6 +356,7 @@ function itemKey(item: unknown): string {
     // а не как дубль; разные встречи с одинаковым title в разные даты не сливаются.
     if (o.date && o.title && !o.timestamp) return 'cal:' + String(o.date) + '|' + String(o.title);
     if (o.title) return 'title:' + String(o.title);
+    if (o.note) return 'note:' + String(o.note);
     if (o.text) return 'text:' + String(o.text);
     if (o.skill) return 'skill:' + String(o.skill);
     if (o.day) return 'day:' + String(o.day);

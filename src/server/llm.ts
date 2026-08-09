@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { getDb } from '../db/index.js';
 import { DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL, LLM_TIMEOUT_MS } from './config.js';
-import { getState, saveState, mergeState, sanitizeStateEvents } from './state.js';
+import { getState, saveState, mergeState, sanitizeStateEvents, extractMomDay } from './state.js';
 import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -50,10 +50,24 @@ function buildMessageHistory(chatId: string): Array<{ role: 'system' | 'user' | 
       '\n\nЕсли какие-то разделы пустые или незаполненные — предложи их заполнить. Все новые данные передавай в state.';
   } catch { /* state unavailable */ }
 
-  // Текущая дата — чтобы возраст ребёнка считался от реального «сегодня», а не от выдуманного
+  // Current date — so the baby's age is counted from the real "today", not a made-up one
   const now = new Date();
   const weekday = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'][now.getDay()];
   systemPrompt += '\n\n# ТЕКУЩАЯ ДАТА\nСегодня ' + now.toISOString().slice(0, 10) + ' (' + weekday + '). Возраст ребёнка всегда вычисляй от birthDate относительно этой даты. Не угадывай текущую дату — она указана здесь.';
+
+  // Собственный дополнительный промпт ассистента: заметки, которые LLM сама решила помнить
+  try {
+    const st = getState(chatId);
+    const notes = (st as Record<string, unknown>).llmNotes;
+    if (Array.isArray(notes) && notes.length) {
+      const lines = notes.map((n: unknown) => '- ' + (n && typeof n === 'object' ? String((n as Record<string, unknown>).note ?? '') : String(n))).filter(Boolean);
+      if (lines.length) {
+        systemPrompt += '\n\n## ТВОЙ ДОПОЛНИТЕЛЬНЫЙ ПРОМПТ (заметки, которые ты сама решила помнить)\n' +
+          lines.join('\n') +
+          '\nЭто твой персональный дополнительный промпт — он подставляется в каждый запрос. Обновляй его через state.llmNotes: [{note:"..."}].';
+      }
+    }
+  } catch { /* notes unavailable */ }
 
   const history: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
     { role: 'system', content: systemPrompt },
@@ -193,7 +207,7 @@ export async function handlePrompt(chatId: string, prompt: string, modelName: st
       const retryMsgs = buildMessageHistory(chatId);
       retryMsgs.push(
         { role: 'assistant', content: fullResponse.trim() },
-        { role: 'user', content: 'Ты ответила обычным текстом, но данные не сохранились. Верни ответ ТОЛЬКО в формате JSON: {"text":"что сказать","state":{...данные которые нужно сохранить...}}. Если данных для state нет — верни {"text":"...","state":{}}. Схема state — строго как в системном промпте: кормления в feeds (amount числом), сны в sleeps, остальное в events; время — текстом в time/start/end. Если мама упоминала ВЕС или РОСТ — обязательно включи в state: weight/height и событие {title:"Замер"}. Если мама просила СОХРАНИТЬ или ОБНОВИТЬ советы/рецепты/списки/покупки — включи их в state (tips/recipes/todos/shopping; при обновлении — тот же title, дополненный text). Проверь свой state перед отправкой: всё, что мама назвала (кормления со временем, сны, вес, рост, просьбы сохранить), — присутствует.' },
+        { role: 'user', content: 'Ты ответила обычным текстом, но данные не сохранились. Верни ответ ТОЛЬКО в формате JSON: {"text":"что сказать","state":{...данные которые нужно сохранить...}}. Если данных для state нет — верни {"text":"...","state":{}}. Схема state — строго как в системном промпте: кормления в feeds (amount числом), сны в sleeps, остальное в events; время — текстом в time/start/end (если мама назвала дату дня — все события с ней, например "20.07 07:30"). Если мама упоминала ВЕС или РОСТ — обязательно включи в state: weight/height и событие {title:"Замер"}. Если мама просила СОХРАНИТЬ или ОБНОВИТЬ советы/рецепты/списки/покупки — включи их в state (tips/recipes/todos/shopping; при обновлении — тот же title, дополненный text). Плюс проактивно: если в calendar ещё нет ближайших медицинских вех (прививки/осмотры по нацкалендарю на 3 месяца вперёд от birthDate) — добавь их с эмодзи (💉/🩺/⚕️); если навыки (skills) не обновлялись 2+ недели — добавь skills по возрасту ребёнка; если в разговоре была содержательная тема (колики, сон, купание и т.п.) — добавь 2-3 совета в tips. Проверь свой state перед отправкой: всё, что мама назвала, — присутствует.' },
       );
       const retryStream = await openai.chat.completions.create(
         { model: modelName || DEEPSEEK_MODEL, messages: retryMsgs, stream: true, max_tokens: 8192 },
@@ -230,7 +244,8 @@ export async function handlePrompt(chatId: string, prompt: string, modelName: st
 
     // Save structured state to DB (persistent app data), then broadcast to clients
     if (state) {
-      const merged = mergeState(getState(chatId), sanitizeStateEvents(state));
+      const dayBase = extractMomDay(prompt);
+      const merged = mergeState(getState(chatId), sanitizeStateEvents(state, dayBase));
       saveState(chatId, merged);
       emit('state', merged);
     }

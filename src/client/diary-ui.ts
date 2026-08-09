@@ -295,6 +295,10 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
   <div class="content" id="c-clothes"></div>
   <div class="content" id="c-sad"></div>
   <div class="content" id="c-shopping"></div>
+  <div class="content" id="c-llmn"></div>
+  <div class="content" id="c-family"></div>
+  <div class="content" id="c-budget"></div>
+  <div id="c-dyn"></div>
   <div class="content" id="c-calendar"></div>
   <div class="chat-panel">
     <div class="model-row"><button id="mp">Pro</button><button id="mf" class="active">Flash</button><button id="cc" class="collapse" title="Свернуть чат">▾</button><button id="cud" class="undo" title="Отменить последний ответ">↶</button></div>
@@ -437,6 +441,10 @@ function renderAll() {
   renderClothes();
   renderSad();
   renderShopping();
+  renderLlmn();
+  renderFamily();
+  renderBudget();
+  renderDynTabs();
   renderCalendar();
 }
 
@@ -546,6 +554,86 @@ function renderSkills() {
     append(c, card);
   }
   append(c, askFooter('Обнови список навыков по педиатрическим нормам: что уже умеем, что осваиваем, что должно появиться. Сохрани обновлённый список сразу.'));
+}
+
+function renderLlmn() {
+  const c = $('#c-llmn'); if (!c) return; clear(c);
+  const notes = S.llmNotes || [];
+  if (!notes.length) {
+    append(c, emptySection('Помощник пока не ведёт заметок.', 'Попросите в чате запомнить что-то важное — помощник добавит это в свой дополнительный промпт.'));
+    return;
+  }
+  const card = el('div', { class: 'card' });
+  append(card, el('div', { class: 'card-h' }, 'Дополнительный промпт помощника'));
+  append(card, el('div', { class: 'card-sub' }, 'Заметки, которые помощник сам решил помнить: они подставляются ему в каждый запрос и видны здесь.'));
+  const bd = el('div', { style: 'padding: 8px 18px 14px' });
+  for (const n of notes) {
+    const txt = n && typeof n === 'object' ? (n.note || '') : String(n);
+    if (!txt) continue;
+    append(bd, el('div', { class: 'llmn-row' }, el('span', { class: 'llmn-ico' }, '🧠'), el('span', {}, txt)));
+  }
+  append(card, bd);
+  append(c, card);
+}
+
+function renderFamily() {
+  const c = $('#c-family'); if (!c) return; clear(c);
+  const fam = S.family || [];
+  if (!fam.length) { append(c, emptySection('Состав семьи пока не заполнен.', 'Расскажите в чате о семье — я запомню и буду учитывать в советах и планах.')); return; }
+  const card = el('div', { class: 'card' });
+  append(card, el('div', { class: 'card-h' }, '👨‍👩‍👧 Состав семьи'));
+  const bd = el('div', { style: 'padding: 8px 18px 14px' });
+  for (const m of fam) {
+    const name = m.name || m.role || '—';
+    const role = m.role ? (m.name ? m.role : '') : '';
+    const note = m.note ? ' — ' + m.note : '';
+    append(bd, el('div', { class: 'fam-row' }, el('span', { class: 'fam-ico' }, '👤'), el('span', {}, (m.name ? m.name : '') + (role ? ' · ' + role : '') + (note ? '' : '')), el('span', { class: 's-cat' }, note)));
+  }
+  append(card, bd);
+  append(c, card);
+}
+
+function renderBudget() {
+  const c = $('#c-budget'); if (!c) return; clear(c);
+  const bud = S.budget || [];
+  if (!bud.length) { append(c, emptySection('Бюджет пока пуст.', 'Записывайте траты и доходы в чате (например: «купили продукты на 3500»), я буду вести учёт.')); return; }
+  const byCat = new Map<string, { income: number; expense: number; items: any[] }>();
+  for (const b of bud) {
+    const cat = b.category || 'другое';
+    if (!byCat.has(cat)) byCat.set(cat, { income: 0, expense: 0, items: [] });
+    const g = byCat.get(cat)!;
+    if (b.type === 'income') g.income += Number(b.amount) || 0; else g.expense += Number(b.amount) || 0;
+    g.items.push(b);
+  }
+  let totalIn = 0, totalOut = 0;
+  for (const g of byCat.values()) { totalIn += g.income; totalOut += g.expense; }
+  const card = el('div', { class: 'card' });
+  append(card, el('div', { class: 'card-h' }, '💰 Бюджет'));
+  append(card, el('div', { class: 'card-sub' }, `Доходы: ${totalIn.toLocaleString('ru-RU')} ₽ · Расходы: ${totalOut.toLocaleString('ru-RU')} ₽ · Остаток: ${(totalIn - totalOut).toLocaleString('ru-RU')} ₽`));
+  const bd = el('div', { style: 'padding: 8px 18px 14px' });
+  for (const [cat, g] of byCat) {
+    append(bd, el('div', { class: 'budget-cat' }, el('span', {}, cat), el('span', { class: 's-cat' }, `${g.expense ? '−' + g.expense.toLocaleString('ru-RU') + ' ₽' : ''}${g.income ? ' +' + g.income.toLocaleString('ru-RU') + ' ₽' : ''}`)));
+    for (const it of g.items.slice(-5)) {
+      append(bd, el('div', { class: 'budget-row' }, el('span', {}, (it.note || it.category || '') + (it.date ? ' · ' + String(it.date).slice(5) : '')), el('span', {}, `${it.type === 'income' ? '+' : '−'}${Number(it.amount) || 0} ₽`)));
+    }
+  }
+  append(card, bd);
+  append(c, card);
+}
+
+function renderDynTabs() {
+  const c = $('#c-dyn'); if (!c) return; clear(c);
+  for (const t of S.tabs || []) {
+    if (!t || !t.id) continue;
+    let box = $('#c-dyn-' + t.id);
+    if (!box) { box = el('div', { class: 'content', id: 'c-dyn-' + t.id }); append(c, box); }
+    clear(box);
+    const card = el('div', { class: 'card' });
+    append(card, el('div', { class: 'card-h' }, (t.emoji ? t.emoji + ' ' : '') + (t.title || '')));
+    const bd = el('div', { style: 'padding: 10px 18px 14px; white-space: pre-line' }, t.content || '');
+    append(card, bd);
+    append(box, card);
+  }
 }
 
 function renderShopping() {
@@ -998,7 +1086,11 @@ function renderSad() {
 
 function setupTabs() {
   const tb = $('#tb'); if (!tb) return;
-  const tabs = [['dash', 'Главная'], ['calendar', 'Календарь'], ['skills', 'Навыки'], ['tips', 'Советы'], ['recipes', 'Рецепты'], ['spurts', 'Скачки'], ['clothes', 'Гардероб'], ['sad', 'Сад'], ['shopping', 'Покупки']];
+  const tabs = [['dash', 'Главная'], ['calendar', 'Календарь'], ['skills', 'Навыки'], ['tips', 'Советы'], ['recipes', 'Рецепты'], ['spurts', 'Скачки'], ['clothes', 'Гардероб'], ['sad', 'Сад'], ['shopping', 'Покупки'], ['family', 'Семья'], ['budget', 'Бюджет'], ['llmn', 'Помощник']];
+  // Динамические вкладки от LLM (персонализированные разделы: бизнес, хобби…)
+  for (const t of S.tabs || []) {
+    if (t && t.id && t.title) tabs.push(['dyn-' + t.id, (t.emoji ? t.emoji + ' ' : '') + t.title]);
+  }
   const els: HTMLElement[] = [];
   for (const [id, label] of tabs) {
     const b = el('button', { class: 'tab' + (id === 'dash' ? ' active' : '') }, label);
@@ -1231,6 +1323,7 @@ function occursOn(ev: any, day: Date): boolean {
   if (ev.recurring === 'daily') return true;
   if (ev.recurring === 'weekly') return diff % 7 === 0;
   if (ev.recurring === 'monthly') return d.getDate() === day.getDate();
+  if (ev.recurring === 'yearly') return d.getMonth() === day.getMonth() && d.getDate() === day.getDate();
   return false;
 }
 /** Ближайшее вхождение события не раньше from (для плашек). */
