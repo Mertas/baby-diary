@@ -434,7 +434,11 @@ function saveState(partial: any): Promise<any> {
   }).then(st => { S = st || {}; renderAll(); return st; }).catch(() => {});
 }
 
+let lastTabsKey = '';
 function renderAll() {
+  // Динамические вкладки: пересоздаём кнопки панели, если набор изменился (добавлена/удалена вкладка)
+  const tabsKey = JSON.stringify((S.tabs || []).map((t: any) => t.id));
+  if (tabsKey !== lastTabsKey) { lastTabsKey = tabsKey; setupTabs(); }
   const d = S.details || {};
   const nm = $('#nm'), mt = $('#mt'), ht = $('#ht');
   if (nm) nm.textContent = S.name || '—';
@@ -717,7 +721,11 @@ function renderShopping() {
   for (const [cat, title] of cats) {
     const list = shopping.filter((x: any) => (x.category || 'другое') === cat);
     if (!list.length) continue;
-    const card = el('div', { class: 'card' }); append(card, el('div', { class: 'card-h' }, title));
+    const total = list.reduce((a: number, x: any) => a + (Number(x.price) || 0), 0);
+    const card = el('div', { class: 'card' });
+    const head = el('div', { class: 'card-h' }, title);
+    if (total) append(head, el('span', { class: 's-cat' }, `≈ ${total.toLocaleString('ru-RU')} ₽`));
+    append(card, head);
     for (const x of list) {
       const row = el('div', { class: 'shop-row' + (x.done ? ' done' : '') }, el('input', { type: 'checkbox', checked: !!x.done }), el('span', {}, x.text || ''), el('span', { class: 's-cat' }, cat));
       (row.querySelector('input') as HTMLInputElement).addEventListener('change', function () { x.done = this.checked; saveState({ shopping }); });
@@ -834,8 +842,8 @@ function renderDash() {
   evts.forEach((e: any, i: number) => all.push({ e, kind: 'events', i, icon: /пробужд/i.test(e.title || '') ? '☀️' : /замер/i.test(e.title || '') ? '⚖️' : '📌', title: e.title || 'Событие', sub: e.note || '' }));
   all.sort((a: any, b: any) => (b.e.timestamp || 0) - (a.e.timestamp || 0));
 
-  // Сводка за период (сегодня / 3 дня / 7 дней) — считает клиент, точно
-  const startToday = new Date(); startToday.setHours(0, 0, 0, 0);
+  // Сводка за период (сегодня / 3 дня / 7 дней) — считает клиент, точно; «сегодня» = день мамы
+  const startToday = new Date(todayRef()); startToday.setHours(0, 0, 0, 0);
   const t0 = startToday.getTime() - (dashPeriod > 0 ? (dashPeriod - 1) * 86400000 : 0);
   const nFeeds = feeds.filter((e: any) => (e.timestamp || 0) >= t0).length;
   let sleepMs = 0;
@@ -874,11 +882,12 @@ function renderDash() {
     for (const r of shown) {
       const row = el('div', { class: 'todo-item' + (r.done ? ' done' : '') }, el('input', { type: 'checkbox', checked: !!r.done }), el('span', {}, (r.date ? r.date.slice(5) + ' · ' : '') + (r.text || '')));
       (row.querySelector('input') as HTMLInputElement).addEventListener('change', function () { r.done = this.checked; saveState({ reminders: rems }); });
+      append(row, delBtn(() => { saveState({ reminders: [{ date: r.date || '', text: r.text || '', _delete: true }] }); }));
       append(rc, row);
     }
     if (activeRems.length > 6) {
       const more = el('button', { class: 'ask-btn' }, `Ещё ${activeRems.length - 6} напоминаний`);
-      more.addEventListener('click', () => { for (const r of activeRems.slice(6)) { const row = el('div', { class: 'todo-item' }, el('input', { type: 'checkbox', checked: !!r.done }), el('span', {}, (r.date ? r.date.slice(5) + ' · ' : '') + (r.text || ''))); (row.querySelector('input') as HTMLInputElement).addEventListener('change', function () { r.done = this.checked; saveState({ reminders: rems }); }); more.parentNode!.insertBefore(row, more); } more.remove(); });
+      more.addEventListener('click', () => { for (const r of activeRems.slice(6)) { const row = el('div', { class: 'todo-item' }, el('input', { type: 'checkbox', checked: !!r.done }), el('span', {}, (r.date ? r.date.slice(5) + ' · ' : '') + (r.text || ''))); (row.querySelector('input') as HTMLInputElement).addEventListener('change', function () { r.done = this.checked; saveState({ reminders: rems }); }); append(row, delBtn(() => { saveState({ reminders: [{ date: r.date || '', text: r.text || '', _delete: true }] }); })); more.parentNode!.insertBefore(row, more); } more.remove(); });
       append(rc, more);
     }
     byKey.rems = rc;
@@ -1153,6 +1162,7 @@ function renderSad() {
 
 function setupTabs() {
   const tb = $('#tb'); if (!tb) return;
+  clear(tb);
   const tabs = [['dash', 'Главная'], ['calendar', 'Календарь'], ['skills', 'Навыки'], ['tips', 'Советы'], ['recipes', 'Рецепты'], ['spurts', 'Скачки'], ['clothes', 'Гардероб'], ['sad', 'Сад'], ['shopping', 'Покупки'], ['family', 'Семья'], ['budget', 'Бюджет'], ['llmn', 'Помощник']];
   // Динамические вкладки от LLM (персонализированные разделы: бизнес, хобби…)
   for (const t of S.tabs || []) {
@@ -1426,7 +1436,7 @@ function calItemEl(e: any): HTMLElement {
 
 // Плашки: «Сегодня в 9:00 — Педиатр», «Завтра — Бассейн», «До 12.08 — Собрать справки»
 function renderBanners(c: HTMLElement) {
-  const today = startOfDay(new Date());
+  const today = startOfDay(new Date(todayRef()));
   const items: { d: Date; ev: any; when: string }[] = [];
   for (const ev of calEvents()) {
     const n = nextOccurrence(ev, today);
@@ -1479,7 +1489,7 @@ function renderCalendar() {
   }
   navL.addEventListener('click', () => { shiftCal(-1); renderCalendar(); });
   navR.addEventListener('click', () => { shiftCal(1); renderCalendar(); });
-  todayB.addEventListener('click', () => { calCursor = startOfDay(new Date()); renderCalendar(); });
+  todayB.addEventListener('click', () => { calCursor = startOfDay(new Date(todayRef())); renderCalendar(); });
   append(head, navL, title, navR, todayB, views);
   append(c, head);
   if (calView === 'month') renderCalMonth(c);

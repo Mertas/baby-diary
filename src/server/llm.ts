@@ -207,7 +207,7 @@ export async function handlePrompt(chatId: string, prompt: string, modelName: st
       const retryMsgs = buildMessageHistory(chatId);
       retryMsgs.push(
         { role: 'assistant', content: fullResponse.trim() },
-        { role: 'user', content: 'Ты ответила обычным текстом, но данные не сохранились. Верни ответ ТОЛЬКО в формате JSON: {"text":"что сказать","state":{...данные которые нужно сохранить...}}. Если данных для state нет — верни {"text":"...","state":{}}. Схема state — строго как в системном промпте: кормления в feeds (amount числом), сны в sleeps, остальное в events; время — текстом в time/start/end (если мама назвала дату дня — все события с ней, например "20.07 07:30"). Если мама упоминала ВЕС или РОСТ — обязательно включи в state: weight/height и событие {title:"Замер"}. Если мама просила СОХРАНИТЬ или ОБНОВИТЬ советы/рецепты/списки/покупки — включи их в state (tips/recipes/todos/shopping; при обновлении — тот же title, дополненный text). Плюс проактивно: если в calendar ещё нет ближайших медицинских вех (прививки/осмотры по нацкалендарю на 3 месяца вперёд от birthDate) — добавь их с эмодзи (💉/🩺/⚕️); если навыки (skills) не обновлялись 2+ недели — добавь skills по возрасту ребёнка; если в разговоре была содержательная тема (колики, сон, купание и т.п.) — добавь 2-3 совета в tips. Проверь свой state перед отправкой: всё, что мама назвала, — присутствует.' },
+        { role: 'user', content: 'Ты ответила обычным текстом, но данные не сохранились. Верни ответ ТОЛЬКО в формате JSON: {"text":"что сказать","state":{...данные которые нужно сохранить...}}. Если данных для state нет — верни {"text":"...","state":{}}. Схема state — строго как в системном промпте: кормления в feeds (amount числом), сны в sleeps, остальное в events; время — текстом в time/start/end (если мама назвала дату дня — все события с ней, например "20.07 07:30"). Если мама упоминала ВЕС или РОСТ — обязательно включи в state: weight/height и событие {title:"Замер"}. Если мама просила СОХРАНИТЬ или ОБНОВИТЬ советы/рецепты/списки/покупки — включи их в state (tips/recipes/todos/shopping; при обновлении — тот же title, дополненный text). Плюс проактивно: если в calendar ещё нет ближайших медицинских вех (прививки/осмотры по нацкалендарю на 3 месяца вперёд от birthDate) — добавь их с эмодзи (💉/🩺/⚕️); если навыки (skills) не обновлялись 2+ недели — добавь skills по возрасту ребёнка; если в разговоре была содержательная тема (колики, сон, купание и т.п.) — добавь 2-3 совета в tips; если ребёнку 5–25 недель и spurts пуст или не обновлялись 3+ недели — добавь актуальный скачок роста (неделя + описание). Проверь свой state перед отправкой: всё, что мама назвала, — присутствует.' },
       );
       const retryStream = await openai.chat.completions.create(
         { model: modelName || DEEPSEEK_MODEL, messages: retryMsgs, stream: true, max_tokens: 8192 },
@@ -247,8 +247,9 @@ export async function handlePrompt(chatId: string, prompt: string, modelName: st
       const dayBase = extractMomDay(prompt);
       const merged = mergeState(getState(chatId), sanitizeStateEvents(state, dayBase));
       if (dayBase != null) {
-        // запоминаем «день мамы» — возраст/сводка/таймлайн считают от него
-        merged.lastMomDay = new Date(dayBase).toISOString().slice(0, 10);
+        // запоминаем «день мамы» — возраст/сводка/таймлайн считают от него (ЛОКАЛЬНАЯ дата, не UTC!)
+        const dd = new Date(dayBase);
+        merged.lastMomDay = dd.getFullYear() + '-' + String(dd.getMonth() + 1).padStart(2, '0') + '-' + String(dd.getDate()).padStart(2, '0');
       }
       saveState(chatId, merged);
       emit('state', merged);

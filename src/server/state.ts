@@ -27,7 +27,9 @@ function parseTimeHint(hint: unknown, now: number, dayBase?: number): number {
   const dm = s.match(/(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?(?:\s+(\d{1,2}):(\d{2}))?/);
   if (dm) {
     const day = parseInt(dm[1], 10), mon = parseInt(dm[2], 10);
-    const isDate = day > 23 || (mon >= 1 && mon <= 12 && !hasColon);
+    // «11.08 06:30» — дата+время (есть ЧЧ:ММ) — однозначно дата, даже если день ≤ 23
+    const hasTime = !!dm[4];
+    const isDate = day > 23 || (mon >= 1 && mon <= 12 && (!hasColon || hasTime));
     if (isDate && mon >= 1 && mon <= 12 && day >= 1 && day <= 31) {
       const yr = dm[3] ? (parseInt(dm[3], 10) < 100 ? 2000 + parseInt(dm[3], 10) : parseInt(dm[3], 10)) : new Date(now).getFullYear();
       const d = new Date(yr, mon - 1, day);
@@ -135,7 +137,8 @@ function eventKey(o: Record<string, unknown>): string {
   return `ev|${ts}|${o.title ?? o.note ?? ''}`;
 }
 export function extractMomDay(text: string): number | undefined {
-  // «сегодня 20.07» / «сегодня 20.07.2026» / «сегодня 20 июля» — день мамы
+  // «сегодня 20.07» / «сегодня 20.07.2026» / «сегодня 20 июля» / «сегодня 10 августа» — день мамы
+  const MONTHS: Record<string, number> = { 'января': 1, 'февраля': 2, 'марта': 3, 'апреля': 4, 'мая': 5, 'июня': 6, 'июля': 7, 'августа': 8, 'сентября': 9, 'октября': 10, 'ноября': 11, 'декабря': 12 };
   const m = text.match(/сегодня\s+(\d{1,2})[.\/](\d{1,2})(?:[.\/](\d{2,4}))?/i);
   if (m) {
     const day = parseInt(m[1], 10), mon = parseInt(m[2], 10);
@@ -143,6 +146,17 @@ export function extractMomDay(text: string): number | undefined {
       const yr = m[3] ? (parseInt(m[3], 10) < 100 ? 2000 + parseInt(m[3], 10) : parseInt(m[3], 10)) : new Date().getFullYear();
       const d = new Date(yr, mon - 1, day);
       if (!isNaN(d.getTime())) { d.setHours(0, 0, 0, 0); return d.getTime(); }
+    }
+  }
+  const mr = text.match(/сегодня\s+(\d{1,2})\s+([а-яё]+)/i);
+  if (mr) {
+    const mon = MONTHS[mr[2].toLowerCase()];
+    if (mon) {
+      const day = parseInt(mr[1], 10);
+      if (day >= 1 && day <= 31) {
+        const d = new Date(new Date().getFullYear(), mon - 1, day);
+        if (!isNaN(d.getTime())) { d.setHours(0, 0, 0, 0); return d.getTime(); }
+      }
     }
   }
   return undefined;
@@ -346,6 +360,8 @@ function appendUnique(base: unknown[], incoming: unknown[]): unknown[] {
 function itemKey(item: unknown): string {
   if (item && typeof item === 'object') {
     const o = item as Record<string, unknown>;
+    // Семья: ключ по имени (дедуп при переиздании), id модели не должен плодить дубли
+    if (o.name && !o.timestamp && !o.title) return 'name:' + String(o.name) + '|' + String(o.role || '');
     if (o.id) return 'id:' + String(o.id);
     // События (feeds/sleeps/events) уникальны по времени — не дедуплицировать по title/типу,
     // иначе два «Пробуждения» или два «Замера» в разные дни заменят друг друга
