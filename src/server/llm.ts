@@ -246,6 +246,10 @@ export async function handlePrompt(chatId: string, prompt: string, modelName: st
     if (state) {
       const dayBase = extractMomDay(prompt);
       const merged = mergeState(getState(chatId), sanitizeStateEvents(state, dayBase));
+      if (dayBase != null) {
+        // запоминаем «день мамы» — возраст/сводка/таймлайн считают от него
+        merged.lastMomDay = new Date(dayBase).toISOString().slice(0, 10);
+      }
       saveState(chatId, merged);
       emit('state', merged);
     }

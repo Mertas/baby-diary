@@ -316,9 +316,14 @@ const SEC = localStorage.getItem('pui2_secret_' + CHAT_ID) || '';
 let S: any = {};
 let dashPeriod = 0; // 0 = сегодня, 3 = за 3 дня, 7 = за 7 дней
 
+function todayRef(): number {
+  // «Сегодня» = день мамы (последняя дата из её сообщений), иначе реальная дата
+  if (S.lastMomDay) { const d = new Date(S.lastMomDay + 'T00:00:00'); if (!isNaN(d.getTime())) return d.getTime(); }
+  return Date.now();
+}
 function ageStr(bd?: string): string {
   if (!bd) return '';
-  const d = Math.floor((Date.now() - new Date(bd).getTime()) / 86400000);
+  const d = Math.floor((todayRef() - new Date(bd).getTime()) / 86400000);
   if (d < 0) return '';
   if (d < 30) return d + ' дн.';
   const m = Math.floor(d / 30);
@@ -328,7 +333,7 @@ function ageStr(bd?: string): string {
 }
 function ageMonths(bd?: string): number {
   if (!bd) return 0;
-  return Math.max(0, Math.floor((Date.now() - new Date(bd).getTime()) / 2592000000));
+  return Math.max(0, Math.floor((todayRef() - new Date(bd).getTime()) / 2592000000));
 }
 function fmtTime(ts?: number): string {
   if (!ts) return '';
@@ -350,9 +355,9 @@ function dayKey(ts?: number): string {
   return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
 }
 function dayTitle(key: string): string {
-  const now = new Date();
+  const now = new Date(todayRef());
   if (key === dayKey(now.getTime())) return 'Сегодня';
-  const y = new Date(); y.setDate(y.getDate() - 1);
+  const y = new Date(now.getTime()); y.setDate(y.getDate() - 1);
   if (key === dayKey(y.getTime())) return 'Вчера';
   const d = new Date(key + 'T00:00:00');
   const wd = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'][d.getDay()];
@@ -560,7 +565,7 @@ function renderLlmn() {
   const c = $('#c-llmn'); if (!c) return; clear(c);
   const notes = S.llmNotes || [];
   if (!notes.length) {
-    append(c, emptySection('Помощник пока не ведёт заметок.', 'Попросите в чате запомнить что-то важное — помощник добавит это в свой дополнительный промпт.'));
+    append(c, emptySection('Помощник ещё не составил свой дополнительный промпт.', 'Это его личные заметки о вашей семье: скажите в чате «Запомни, что…» — и он добавит заметку. Она будет видна здесь и учитываться в каждом его ответе.'));
     return;
   }
   const card = el('div', { class: 'card' });
@@ -822,7 +827,7 @@ function renderDash() {
     // Горизонтальный таймлайн: дни С СОБЫТИЯМИ (последние htlDays), плюс дозаполнение
     // календарными днями перед самым старым — иначе редкие события (визиты раз в месяц)
     // выпадают из окна и таймлайн выглядит пустым.
-    const nowD = new Date(); nowD.setHours(0, 0, 0, 0);
+    const nowD = new Date(todayRef()); nowD.setHours(0, 0, 0, 0);
     const daySet = new Set<string>();
     for (const it of all) daySet.add(dayKey(it.e.timestamp));
     let dayKeys = [...daySet].sort((a, b) => (a < b ? 1 : -1)).slice(0, htlDays);
