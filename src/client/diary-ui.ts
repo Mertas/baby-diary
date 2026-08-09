@@ -199,6 +199,17 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .cal-item .t { font-weight: 600; display: flex; align-items: center; gap: 6px; }
 .cal-item .cal-del { margin-left: auto; border: none; background: none; color: var(--text-soft); cursor: pointer; font-size: 11px; padding: 0 2px; }
 .cal-item .cal-del:hover { color: #c0392b; }
+/* Вкладки Семья / Бюджет / Помощник / динамические */
+.card-h { display: flex; align-items: center; gap: 8px; }
+.card-h .cal-del { margin-left: auto; }
+.fam-row, .llmn-row, .budget-row { display: flex; align-items: center; gap: 8px; padding: 7px 2px; border-bottom: 1px solid rgba(0,0,0,.05); font-size: 14px; }
+.fam-row .fam-ico, .llmn-row .llmn-ico { font-size: 16px; flex: none; }
+.fam-row > span:nth-child(2), .llmn-row > span:nth-child(2) { flex: 1; min-width: 0; }
+.fam-row .s-cat, .budget-row .s-cat { color: var(--text-dim); font-size: 12px; flex: none; }
+.budget-cat { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 2px 4px; font-weight: 700; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--text); }
+.budget-row > span:nth-child(2) { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.card .ask-btn { margin: 12px auto 8px; }
+#c-dyn .card { margin-bottom: 12px; }
 .cal-item.imp { background: #fdecea; color: #c0392b; }
 .cal-day .cal-item { margin-bottom: 4px; }
 /* Типы карточек Главной: hero-сводка, тихий профиль, тёплый план, хроника на всю ширину */
@@ -854,15 +865,21 @@ function renderDash() {
     byKey.summary = sc;
   }
 
-  // Напоминания (все невыполненные — просроченные и ближайшие)
+  // Напоминания (все невыполненные — просроченные и ближайшие; на Главной — первые 6)
   const rems = S.reminders || [];
-  const activeRems = rems.filter((r: any) => !r.done);
+  const activeRems = rems.filter((r: any) => !r.done).sort((a: any, b: any) => (a.date || '').localeCompare(b.date || ''));
   if (activeRems.length) {
     const rc = el('div', { class: 'card' }); append(rc, el('div', { class: 'card-h' }, 'Напоминания'));
-    for (const r of activeRems) {
+    const shown = activeRems.slice(0, 6);
+    for (const r of shown) {
       const row = el('div', { class: 'todo-item' + (r.done ? ' done' : '') }, el('input', { type: 'checkbox', checked: !!r.done }), el('span', {}, (r.date ? r.date.slice(5) + ' · ' : '') + (r.text || '')));
       (row.querySelector('input') as HTMLInputElement).addEventListener('change', function () { r.done = this.checked; saveState({ reminders: rems }); });
       append(rc, row);
+    }
+    if (activeRems.length > 6) {
+      const more = el('button', { class: 'ask-btn' }, `Ещё ${activeRems.length - 6} напоминаний`);
+      more.addEventListener('click', () => { for (const r of activeRems.slice(6)) { const row = el('div', { class: 'todo-item' }, el('input', { type: 'checkbox', checked: !!r.done }), el('span', {}, (r.date ? r.date.slice(5) + ' · ' : '') + (r.text || ''))); (row.querySelector('input') as HTMLInputElement).addEventListener('change', function () { r.done = this.checked; saveState({ reminders: rems }); }); more.parentNode!.insertBefore(row, more); } more.remove(); });
+      append(rc, more);
     }
     byKey.rems = rc;
   }
