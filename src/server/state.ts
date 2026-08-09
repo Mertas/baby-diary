@@ -302,13 +302,13 @@ export function mergeState(current: Record<string, unknown>, incoming: Record<st
       // Матчинг: по id, а для легаси-записей без id — по (title|date|time) из маркера.
       const markers = iv.filter((x: any) => x && typeof x === 'object' && x._delete);
       const delById = new Set(markers.filter((x: any) => x.id).map((x: any) => String(x.id)));
-      const delByKey = new Set(markers.filter((x: any) => !x.id).map((x: any) => `${x.title}|${x.date}|${x.time || ''}`));
+      const delByKey = new Set(markers.filter((x: any) => !x.id).map((x: any) => `${x.title}|${x.date}|${x.time || ''}|${x.note || ''}`));
       let mergedBase = base;
       if (delById.size || delByKey.size) {
         mergedBase = base.filter((x: any) => {
           if (x && typeof x === 'object') {
             if (x.id && delById.has(String(x.id))) return false;
-            if (!x.id && delByKey.has(`${x.title}|${x.date}|${x.time || ''}`)) return false;
+            if (!x.id && delByKey.has(`${x.title}|${x.date}|${x.time || ''}|${x.note || ''}`)) return false;
           }
           return true;
         });
@@ -356,6 +356,7 @@ function itemKey(item: unknown): string {
     // а не как дубль; разные встречи с одинаковым title в разные даты не сливаются.
     if (o.date && o.title && !o.timestamp) return 'cal:' + String(o.date) + '|' + String(o.title);
     if (o.title) return 'title:' + String(o.title);
+    if (o.name) return 'name:' + String(o.name);
     if (o.note) return 'note:' + String(o.note);
     if (o.text) return 'text:' + String(o.text);
     if (o.skill) return 'skill:' + String(o.skill);

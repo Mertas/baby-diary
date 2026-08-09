@@ -575,33 +575,53 @@ function renderLlmn() {
   for (const n of notes) {
     const txt = n && typeof n === 'object' ? (n.note || '') : String(n);
     if (!txt) continue;
-    append(bd, el('div', { class: 'llmn-row' }, el('span', { class: 'llmn-ico' }, '🧠'), el('span', {}, txt)));
+    append(bd, el('div', { class: 'llmn-row' }, el('span', { class: 'llmn-ico' }, '🧠'), el('span', {}, txt), delBtn(() => { saveState({ llmNotes: [{ note: txt, _delete: true }] }); })));
   }
   append(card, bd);
   append(c, card);
 }
 
+function delBtn(onDel: () => void): HTMLElement {
+  const b = el('button', { class: 'cal-del', title: 'Удалить' }, '✕');
+  b.addEventListener('click', onDel);
+  return b;
+}
+
 function renderFamily() {
   const c = $('#c-family'); if (!c) return; clear(c);
   const fam = S.family || [];
-  if (!fam.length) { append(c, emptySection('Состав семьи пока не заполнен.', 'Расскажите в чате о семье — я запомню и буду учитывать в советах и планах.')); return; }
+  if (!fam.length) { append(c, emptySection('Состав семьи пока не заполнен.', 'Расскажите в чате о семье — я запомню и буду учитывать в советах и планах.')); }
   const card = el('div', { class: 'card' });
   append(card, el('div', { class: 'card-h' }, '👨‍👩‍👧 Состав семьи'));
   const bd = el('div', { style: 'padding: 8px 18px 14px' });
   for (const m of fam) {
-    const name = m.name || m.role || '—';
-    const role = m.role ? (m.name ? m.role : '') : '';
+    const name = m.name || '—';
+    const role = m.role ? ' · ' + m.role : '';
     const note = m.note ? ' — ' + m.note : '';
-    append(bd, el('div', { class: 'fam-row' }, el('span', { class: 'fam-ico' }, '👤'), el('span', {}, (m.name ? m.name : '') + (role ? ' · ' + role : '') + (note ? '' : '')), el('span', { class: 's-cat' }, note)));
+    const row = el('div', { class: 'fam-row' }, el('span', { class: 'fam-ico' }, '👤'), el('span', {}, name + role + (note ? '' : '')), el('span', { class: 's-cat' }, note), delBtn(() => { saveState({ family: [{ name, _delete: true }] }); }));
+    append(bd, row);
   }
-  append(card, bd);
+  const add = el('button', { class: 'ask-btn' }, '＋ Добавить');
+  add.addEventListener('click', () => {
+    modal('Добавить члена семьи', (b) => {
+      const inp = (ph: string) => { const i = el('input', { placeholder: ph }); i.style.cssText = 'display:block;width:100%;margin:6px 0;padding:6px 8px'; append(b, i); return i; };
+      const ni = inp('Имя'), ri = inp('Кто (мама, папа, бабушка…)'), no = inp('Примечание (день рождения, особенности)');
+      (window as any).__fam = { ni, ri, no };
+    }, () => {
+      const { ni, ri, no } = (window as any).__fam;
+      const fam2 = [...(S.family || [])];
+      fam2.push({ name: ni.value.trim() || '—', role: ri.value.trim() || '', note: no.value.trim() || undefined });
+      saveState({ family: fam2 });
+    });
+  });
+  append(card, bd, add);
   append(c, card);
 }
 
 function renderBudget() {
   const c = $('#c-budget'); if (!c) return; clear(c);
   const bud = S.budget || [];
-  if (!bud.length) { append(c, emptySection('Бюджет пока пуст.', 'Записывайте траты и доходы в чате (например: «купили продукты на 3500»), я буду вести учёт.')); return; }
+  if (!bud.length) { append(c, emptySection('Бюджет пока пуст.', 'Записывайте траты и доходы в чате (например: «купили продукты на 3500») или добавьте вручную.')); }
   const byCat = new Map<string, { income: number; expense: number; items: any[] }>();
   for (const b of bud) {
     const cat = b.category || 'другое';
@@ -618,11 +638,34 @@ function renderBudget() {
   const bd = el('div', { style: 'padding: 8px 18px 14px' });
   for (const [cat, g] of byCat) {
     append(bd, el('div', { class: 'budget-cat' }, el('span', {}, cat), el('span', { class: 's-cat' }, `${g.expense ? '−' + g.expense.toLocaleString('ru-RU') + ' ₽' : ''}${g.income ? ' +' + g.income.toLocaleString('ru-RU') + ' ₽' : ''}`)));
-    for (const it of g.items.slice(-5)) {
-      append(bd, el('div', { class: 'budget-row' }, el('span', {}, (it.note || it.category || '') + (it.date ? ' · ' + String(it.date).slice(5) : '')), el('span', {}, `${it.type === 'income' ? '+' : '−'}${Number(it.amount) || 0} ₽`)));
+    for (const it of g.items.slice(-6)) {
+      const row = el('div', { class: 'budget-row' },
+        el('span', {}, (it.note || it.category || '') + (it.date ? ' · ' + String(it.date).slice(5) : '')),
+        el('span', {}, `${it.type === 'income' ? '+' : '−'}${Number(it.amount) || 0} ₽`),
+        delBtn(() => {
+          if (it.id) saveState({ budget: [{ id: it.id, _delete: true }] });
+          else saveState({ budget: [{ note: it.note || '', category: it.category || '', amount: it.amount, type: it.type, _delete: true }] });
+        }));
+      append(bd, row);
     }
   }
-  append(card, bd);
+  const add = el('button', { class: 'ask-btn' }, '＋ Добавить трату/доход');
+  add.addEventListener('click', () => {
+    modal('Добавить запись', (b) => {
+      const mk = (ph: string, def?: string) => { const i = el('input', { placeholder: ph, value: def || '' }); i.style.cssText = 'display:block;width:100%;margin:6px 0;padding:6px 8px'; append(b, i); return i; };
+      const sel = el('select', {}); sel.style.cssText = 'display:block;width:100%;margin:6px 0;padding:6px 8px';
+      append(sel, el('option', { value: 'expense' }, 'Расход'), el('option', { value: 'income' }, 'Доход'));
+      append(b, sel);
+      const ci = mk('Категория (продукты, подгузники…)'), ai = mk('Сумма, ₽'), ni = mk('Примечание');
+      (window as any).__bud = { sel, ci, ai, ni };
+    }, () => {
+      const { sel, ci, ai, ni } = (window as any).__bud;
+      const bud2 = [...(S.budget || [])];
+      bud2.push({ id: 'b' + Math.random().toString(36).slice(2, 8), type: sel.value, category: ci.value.trim() || 'другое', amount: Number(ai.value) || 0, note: ni.value.trim() || undefined, date: new Date().toISOString().slice(0, 10) });
+      saveState({ budget: bud2 });
+    });
+  });
+  append(card, bd, add);
   append(c, card);
 }
 
@@ -634,7 +677,9 @@ function renderDynTabs() {
     if (!box) { box = el('div', { class: 'content', id: 'c-dyn-' + t.id }); append(c, box); }
     clear(box);
     const card = el('div', { class: 'card' });
-    append(card, el('div', { class: 'card-h' }, (t.emoji ? t.emoji + ' ' : '') + (t.title || '')));
+    const head = el('div', { class: 'card-h' }, (t.emoji ? t.emoji + ' ' : '') + (t.title || ''));
+    append(head, delBtn(() => { saveState({ tabs: [{ id: t.id, _delete: true }] }); }));
+    append(card, head);
     const bd = el('div', { style: 'padding: 10px 18px 14px; white-space: pre-line' }, t.content || '');
     append(card, bd);
     append(box, card);
