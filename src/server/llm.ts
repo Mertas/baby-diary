@@ -182,7 +182,8 @@ async function fillEmptySections(chatId: string, merged: Record<string, unknown>
   const needSkills = Array.isArray(s.skills) ? s.skills.length === 0 : true;
   const needSpurts = (!Array.isArray(s.spurts) || s.spurts.length === 0) && !isNaN(ageWeeks) && ageWeeks >= 5 && ageWeeks <= 26;
   const cal = Array.isArray(s.calendar) ? s.calendar : [];
-  const needCal = cal.length === 0 && !isNaN(ageDays) && ageDays <= 730;
+  const hasMed = cal.some((c: any) => /[💉🩺⚕️🎂]/.test(String(c.title || '')));
+  const needCal = !hasMed && !isNaN(ageDays) && ageDays <= 730;
   if (!needSkills && !needSpurts && !needCal) return;
   const attempts = fillAttempts.get(chatId) || 0;
   if (attempts >= 2) return;
@@ -197,6 +198,7 @@ async function fillEmptySections(chatId: string, merged: Record<string, unknown>
   messages.push({
     role: 'user',
     content: `Дозаполни пустые разделы дневника (мама ничего про них не писала, это твоя проактивность): ${asks.join('; ')}. `
+      + `День по дневнику: ${(merged as any).lastMomDay || 'сегодня'} — даты вех/скачков считай от него (если он указан), а не от серверной даты. `
       + `Верни ТОЛЬКО JSON: {"state": { ...только эти разделы... }} — без текста, без других разделов. Схема строго как в системном промпте.`,
   });
   try {
