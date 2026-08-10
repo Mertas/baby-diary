@@ -197,8 +197,8 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .cal-list { display: flex; flex-direction: column; gap: 3px; }
 .cal-item { border-radius: 6px; padding: 4px 6px; font-size: 12px; background: #e8f0fb; }
 .cal-item .t { font-weight: 600; display: flex; align-items: center; gap: 6px; }
-.cal-item .cal-del { margin-left: auto; border: none; background: none; color: var(--text-soft); cursor: pointer; font-size: 11px; padding: 0 2px; }
-.cal-item .cal-del:hover { color: #c0392b; }
+.cal-del { margin-left: auto; border: none; background: none; color: var(--text-soft); cursor: pointer; font-size: 13px; line-height: 1; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 50%; flex: none; padding: 0; transition: background .15s ease, color .15s ease; }
+.cal-del:hover { color: #c0392b; background: rgba(192,57,43,.08); }
 /* Вкладки Семья / Бюджет / Помощник / динамические */
 .card-h { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 .card-h .cal-del { margin-left: auto; }
@@ -213,6 +213,7 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .budget-cat .s-cat { font-weight: 600; letter-spacing: 0; text-transform: none; font-size: 13px; color: var(--accent); font-variant-numeric: tabular-nums; }
 .budget-row .budget-note { color: var(--text-soft); font-size: 12px; flex: none; }
 .budget-row .budget-amt { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.budget-row .cal-del { margin-left: 4px; }
 .budget-total { display: flex; justify-content: space-between; padding: 12px 4px 2px; font-weight: 700; font-size: 15px; border-top: 1px dashed rgba(0,0,0,.1); margin-top: 6px; }
 .budget-total .s-cat { color: var(--text-soft); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
 .budget-total .val { font-variant-numeric: tabular-nums; }
