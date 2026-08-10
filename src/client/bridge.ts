@@ -61,7 +61,7 @@ declare global {
   interface Window {
     __CHAT_ID__: string;
     __CHAT_THINKING__: boolean;
-    __INITIAL_MESSAGES__: { id: string; role: string; text: string; timestamp: number; choices?: string[] }[];
+    __INITIAL_MESSAGES__: { id: string; role: string; text: string; timestamp: number; choices?: string[]; multi?: boolean }[];
     __runtime_subscribe: (path: string, handler: (content: string) => void) => void;
     __messagesAdd: (html: string) => void;
     __messagesRemove: (agentId: number | null, userId: number | null) => void;
@@ -120,6 +120,7 @@ window.__messagesAdd = (html: string): void => {
     if (chRaw) {
       try { const p = JSON.parse(chRaw); if (Array.isArray(p)) choices = p.map(String); } catch { /* ignore */ }
     }
+    const multi = msgEl.getAttribute('data-multi') === '1';
 
     const msg: PromptUIMessage = {
       id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
@@ -127,6 +128,7 @@ window.__messagesAdd = (html: string): void => {
       text,
       timestamp: Date.now(),
       ...(choices && choices.length ? { choices } : {}),
+      ...(multi ? { multi: true } : {}),
     };
 
     if (_messages.find((m) => m.text === text && m.role === msg.role)) continue;

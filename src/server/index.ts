@@ -24,11 +24,11 @@ setupWebSocket(wss);
 setReplayHandler((chatId: string, path: string) => {
   const db = getDb();
   if (path === '/body') {
-    const rows = db.prepare('SELECT id, role, content, choices FROM llm_messages WHERE chat_id = ? ORDER BY created_at ASC').all(chatId) as Pick<LlmMessage, 'id' | 'role' | 'content' | 'choices'>[];
+    const rows = db.prepare('SELECT id, role, content, choices, multi FROM llm_messages WHERE chat_id = ? ORDER BY created_at ASC').all(chatId) as Pick<LlmMessage, 'id' | 'role' | 'content' | 'choices' | 'multi'>[];
     return rows.map((r) => {
       let attr = '';
       if (r.choices) {
-        try { const p = JSON.parse(r.choices); if (Array.isArray(p) && p.length) attr = ' data-choices="' + escapeAttr(JSON.stringify(p.map(String))) + '"'; } catch { /* ignore */ }
+        try { const p = JSON.parse(r.choices); if (Array.isArray(p) && p.length) attr = ' data-choices="' + escapeAttr(JSON.stringify(p.map(String))) + '"' + (r.multi ? ' data-multi="1"' : ''); } catch { /* ignore */ }
       }
       return `<div class="message message-${r.role}"${attr}>${escapeHtml(r.content)}</div>`;
     }).join('\n');
@@ -48,13 +48,13 @@ function indexHtml() {
 
 function appHtml(chatId: string) {
   const db = getDb();
-  const rows = db.prepare('SELECT id, role, content, choices FROM llm_messages WHERE chat_id = ? ORDER BY created_at ASC').all(chatId) as Pick<LlmMessage, 'id' | 'role' | 'content' | 'choices'>[];
+  const rows = db.prepare('SELECT id, role, content, choices, multi FROM llm_messages WHERE chat_id = ? ORDER BY created_at ASC').all(chatId) as Pick<LlmMessage, 'id' | 'role' | 'content' | 'choices' | 'multi'>[];
   const messages = rows.map((r) => {
-    let choices: string[] | undefined;
-    if (r.choices) {
-      try { const p = JSON.parse(r.choices); if (Array.isArray(p)) choices = p.map(String); } catch { /* ignore */ }
-    }
-    return { id: String(r.id), role: r.role, text: r.content, timestamp: 0, ...(choices && choices.length ? { choices } : {}) };
+  let choices: string[] | undefined;
+  if (r.choices) {
+    try { const p = JSON.parse(r.choices); if (Array.isArray(p)) choices = p.map(String); } catch { /* ignore */ }
+  }
+  return { id: String(r.id), role: r.role, text: r.content, timestamp: 0, ...(choices && choices.length ? { choices } : {}), ...(r.multi ? { multi: true } : {}) };
   });
   const chat = db.prepare('SELECT thinking FROM chats WHERE id = ?').get(chatId) as { thinking: number } | undefined;
   const thinking = chat?.thinking === 1;

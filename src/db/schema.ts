@@ -70,6 +70,7 @@ export interface LlmMessage {
   ui: string | null;
   patch: string | null;
   choices: string | null;
+  multi: number;
   created_at: number;
 }
 

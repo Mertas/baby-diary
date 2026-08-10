@@ -15,7 +15,7 @@ const openai = new OpenAI({
   timeout: LLM_TIMEOUT_MS,
 });
 
-interface LlmResponse { text?: string; ui?: string; state?: Record<string, unknown>; choices?: string[]; }
+interface LlmResponse { text?: string; ui?: string; state?: Record<string, unknown>; choices?: string[]; multi?: boolean; }
 
 type Broadcaster = (type: string, data: unknown) => void;
 
@@ -302,11 +302,32 @@ export async function handlePrompt(chatId: string, prompt: string, modelName: st
     const text = parsed.text;
     const ui = parsed.ui || null;
     const state = parsed.state || null;
-    const choices = Array.isArray(parsed.choices) && parsed.choices.length ? parsed.choices.map(String) : null;
+    let choices = Array.isArray(parsed.choices) && parsed.choices.length ? parsed.choices.map(String) : null;
 
-    db.prepare('INSERT INTO llm_messages (chat_id, role, content, ui, choices) VALUES (?, ?, ?, ?, ?)').run(chatId, 'agent', text, ui, choices ? JSON.stringify(choices) : null);
+    // Модель часто задаёт вопрос без вариантов (свободная форма). Догенерируем варианты серверно,
+    // чтобы мама могла ответить кнопками (3-4 варианта + «Свой вариант»; multi если подходит несколько).
+    if (!choices && parsed.text && /\?[^\p{L}\p{N}]*$/u.test(parsed.text.trim())) {
+      try {
+        const genMsgs = [
+          { role: 'system' as const, content: 'Ты генерируешь варианты ответа к вопросу. Верни ТОЛЬКО JSON: {"choices": ["Вариант1","Вариант2","Вариант3","Свой вариант"], "multi": true|false} — 3–4 коротких варианта, последний всегда "Свой вариант". multi=true, если можно выбрать НЕСКОЛЬКО вариантов одновременно.' },
+          { role: 'user' as const, content: 'Вопрос: ' + parsed.text },
+        ];
+        const gen = await openai.chat.completions.create({ model: DEEPSEEK_MODEL, messages: genMsgs, max_tokens: 1200, stream: false, temperature: 0.6 });
+        const gRaw = gen.choices?.[0]?.message?.content || '';
+        console.log('[choices] raw:', JSON.stringify(gRaw).slice(0, 200), '| finish:', (gen.choices?.[0] as any)?.finish_reason);
+        const g = parseLlmResponse(gRaw);
+        const gc = Array.isArray(g?.choices) ? g.choices.map(String).slice(0, 4) : [];
+        if (gc.length) {
+          if (!gc.some((c) => /свой вариант/i.test(c))) gc.push('Свой вариант');
+          choices = gc;
+          if ((g as any)?.multi) parsed.multi = true;
+        }
+      } catch { /* варианты — опция, не критично */ }
+    }
 
-    const choicesAttr = choices ? ` data-choices="${escapeAttr(JSON.stringify(choices))}"` : '';
+    db.prepare('INSERT INTO llm_messages (chat_id, role, content, ui, choices, multi) VALUES (?, ?, ?, ?, ?, ?)').run(chatId, 'agent', text, ui, choices ? JSON.stringify(choices) : null, parsed.multi ? 1 : 0);
+
+    const choicesAttr = choices ? ` data-choices="${escapeAttr(JSON.stringify(choices))}"${parsed.multi ? ' data-multi="1"' : ''}` : '';
     emit('update', `<div class="message message-agent"${choicesAttr}>${escapeHtml(text)}</div>`);
 
     // Save structured state to DB (persistent app data), then broadcast to clients

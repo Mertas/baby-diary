@@ -125,9 +125,11 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .wp-meal { display: flex; gap: 12px; font-size: 12px; padding: 1px 0; }
 .wp-lbl { color: var(--text-dim); flex-shrink: 0; min-width: 72px; }
 .wp-val { color: var(--text); text-align: right; flex: 1; }
-.msg-choices { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.msg-choice { background: none; border: 1px solid var(--accent); color: var(--accent); border-radius: 20px; padding: 3px 12px; font-size: 11px; cursor: pointer; font-family: var(--sans); }
-.msg-choice:hover { background: var(--accent); color: #fff; }
+.msg-choice { border: 1px solid var(--border); background: none; border-radius: 18px; padding: 5px 12px; font-size: 12px; color: var(--text-dim); cursor: pointer; font-family: var(--sans); }
+.msg-choice:hover { border-color: var(--accent); color: var(--accent); }
+.msg-choice.sel { background: var(--accent); border-color: var(--accent); color: #fff; }
+.msg-choice.done { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.msg-choice.done:hover { background: var(--accent-soft); }
 
 .modal-overlay { position: fixed; inset: 0; background: rgba(33,29,24,0.3); backdrop-filter: blur(2px); z-index: 9999; display: flex; align-items: center; justify-content: center; }
 .modal { background: var(--surface); border-radius: var(--radius); padding: 26px; width: 320px; max-width: 92vw; box-shadow: 0 12px 40px rgba(0,0,0,0.12); }
@@ -1364,13 +1366,34 @@ function setupChat() {
     append(bub, document.createTextNode(m.text || ''));
     if (m.choices && m.choices.length) {
       const row = el('div', { class: 'msg-choices' });
-      for (const ch of m.choices) {
-        const b = el('button', { class: 'msg-choice' }, ch);
-        b.addEventListener('click', () => {
-          if (/свой вариант/i.test(ch)) { inp.focus(); inp.placeholder = 'Ваш вариант...'; me.scrollTo({ top: me.scrollHeight }); return; }
-          inp.value = 'Ответ: ' + ch; sb.click();
+      if (m.multi) {
+        // Мультивыбор: клики накапливаются, «Готово» отправляет выбранное через запятую
+        const picked: string[] = [];
+        for (const ch of m.choices) {
+          const b = el('button', { class: 'msg-choice' }, ch);
+          b.addEventListener('click', () => {
+            if (/свой вариант/i.test(ch)) { inp.focus(); inp.placeholder = 'Ваш вариант (можно несколько, через запятую)...'; me.scrollTo({ top: me.scrollHeight }); return; }
+            const i = picked.indexOf(ch);
+            if (i >= 0) { picked.splice(i, 1); b.classList.remove('sel'); }
+            else { picked.push(ch); b.classList.add('sel'); }
+          });
+          append(row, b);
+        }
+        const done = el('button', { class: 'msg-choice done' }, 'Готово');
+        done.addEventListener('click', () => {
+          if (!picked.length) return;
+          inp.value = 'Ответ: ' + picked.join(', '); sb.click();
         });
-        append(row, b);
+        append(row, done);
+      } else {
+        for (const ch of m.choices) {
+          const b = el('button', { class: 'msg-choice' }, ch);
+          b.addEventListener('click', () => {
+            if (/свой вариант/i.test(ch)) { inp.focus(); inp.placeholder = 'Ваш вариант...'; me.scrollTo({ top: me.scrollHeight }); return; }
+            inp.value = 'Ответ: ' + ch; sb.click();
+          });
+          append(row, b);
+        }
       }
       append(bub, row);
     }
