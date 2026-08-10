@@ -1,6 +1,6 @@
 import { getDb } from '../db/index.js';
 
-const ARRAY_KEYS = new Set(['feeds', 'sleeps', 'events', 'tips', 'recipes', 'spurts', 'todos', 'shopping', 'reminders', 'calendar']);
+const ARRAY_KEYS = new Set(['feeds', 'sleeps', 'events', 'tips', 'recipes', 'spurts', 'todos', 'shopping', 'reminders', 'calendar', 'tabs', 'family', 'budget', 'llmNotes']);
 
 export function getState(chatId: string): Record<string, unknown> {
   const db = getDb();
@@ -316,12 +316,14 @@ export function mergeState(current: Record<string, unknown>, incoming: Record<st
       // Матчинг: по id, а для легаси-записей без id — по (title|date|time) из маркера.
       const markers = iv.filter((x: any) => x && typeof x === 'object' && x._delete);
       const delById = new Set(markers.filter((x: any) => x.id).map((x: any) => String(x.id)));
-      const delByKey = new Set(markers.filter((x: any) => !x.id).map((x: any) => `${x.title}|${x.date}|${x.time || ''}|${x.note || ''}`));
+      const delByName = new Set(markers.filter((x: any) => x.name && !x.id).map((x: any) => String(x.name)));
+      const delByKey = new Set(markers.filter((x: any) => !x.id && !x.name).map((x: any) => `${x.title}|${x.date}|${x.time || ''}|${x.note || ''}`));
       let mergedBase = base;
-      if (delById.size || delByKey.size) {
+      if (delById.size || delByName.size || delByKey.size) {
         mergedBase = base.filter((x: any) => {
           if (x && typeof x === 'object') {
             if (x.id && delById.has(String(x.id))) return false;
+            if (delByName.has(String(x.name || ''))) return false;
             if (!x.id && delByKey.has(`${x.title}|${x.date}|${x.time || ''}|${x.note || ''}`)) return false;
           }
           return true;
