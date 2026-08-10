@@ -170,6 +170,51 @@ export function parseLlmResponse(raw: string): LlmResponse | null {
   return result;
 }
 
+// --- Проактивное дозаполнение пустых разделов (навыки/скачки/календарь-вехи) ---
+const fillAttempts = new Map<string, number>();
+
+async function fillEmptySections(chatId: string, merged: Record<string, unknown>, emit: Broadcaster): Promise<void> {
+  const s = merged as Record<string, any>;
+  const bd = s.birthDate as string | undefined;
+  const ageMs = bd ? Date.now() - new Date(bd).getTime() : NaN;
+  const ageDays = isNaN(ageMs) ? NaN : ageMs / 86400000;
+  const ageWeeks = ageDays / 7;
+  const needSkills = Array.isArray(s.skills) ? s.skills.length === 0 : true;
+  const needSpurts = (!Array.isArray(s.spurts) || s.spurts.length === 0) && !isNaN(ageWeeks) && ageWeeks >= 5 && ageWeeks <= 26;
+  const cal = Array.isArray(s.calendar) ? s.calendar : [];
+  const needCal = cal.length === 0 && !isNaN(ageDays) && ageDays <= 730;
+  if (!needSkills && !needSpurts && !needCal) return;
+  const attempts = fillAttempts.get(chatId) || 0;
+  if (attempts >= 2) return;
+  fillAttempts.set(chatId, attempts + 1);
+  console.log('[fill]', chatId.slice(0, 8), 'attempt', attempts + 1, 'skills:', needSkills, 'spurts:', needSpurts, 'cal:', needCal);
+
+  const asks: string[] = [];
+  if (needSkills) asks.push('skills — навыки по возрасту ребёнка (8–15 шт: что умеет/осваивает/должно появиться, статусы done/current/upcoming, у каждого normal «X–Y мес»)');
+  if (needSpurts) asks.push('spurts — актуальный скачок роста по возрасту (неделя + описание)');
+  if (needCal) asks.push('calendar — все ближайшие медицинские вехи по нацкалендарю прививок на 3 месяца вперёд от birthDate, с эмодзи в title (💉/🩺/⚕️)');
+  const messages = buildMessageHistory(chatId);
+  messages.push({
+    role: 'user',
+    content: `Дозаполни пустые разделы дневника (мама ничего про них не писала, это твоя проактивность): ${asks.join('; ')}. `
+      + `Верни ТОЛЬКО JSON: {"state": { ...только эти разделы... }} — без текста, без других разделов. Схема строго как в системном промпте.`,
+  });
+  try {
+    const res = await openai.chat.completions.create({ model: DEEPSEEK_MODEL, messages, max_tokens: 6000, stream: false, temperature: 0.6 });
+    const raw = res.choices?.[0]?.message?.content || '';
+    console.log('[fill] raw len', raw.length, raw.slice(0, 80).replace(/\n/g, ' '));
+    const parsed = parseLlmResponse(raw);
+    const st = parsed?.state;
+    if (st && typeof st === 'object' && Object.keys(st).length) {
+      const merged2 = mergeState(getState(chatId), sanitizeStateEvents(st));
+      saveState(chatId, merged2);
+      emit('state', merged2);
+    }
+  } catch (e) { console.log('[fill] ERR', String(e).slice(0, 300)); /* тихо: дозаполнение не критично */ }
+}
+
+// --- (конец дозаполнения) ---
+
 export async function handlePrompt(chatId: string, prompt: string, modelName: string | undefined, emit: Broadcaster): Promise<void> {
   const db = getDb();
   if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) { emit('done', null); return; }
@@ -253,6 +298,9 @@ export async function handlePrompt(chatId: string, prompt: string, modelName: st
       }
       saveState(chatId, merged);
       emit('state', merged);
+      // Проактивное дозаполнение пустых разделов: модель часто отвечает только данными дня,
+      // а вкладки (навыки/скачки/календарь-вехи) остаются пустыми. Тихо дозаполняем (макс. 2 попытки на чат).
+      fillEmptySections(chatId, merged, emit).catch(() => {});
     }
     emit('done', null);
   } catch (err) {
