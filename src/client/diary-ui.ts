@@ -76,6 +76,7 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .spurt-card .s-block { margin-top: 14px; }
 .spurt-card .s-block .sb-title { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); font-weight: 600; margin-bottom: 5px; }
 .spurt-card .s-block .sb-text { font-size: 14px; color: var(--text); line-height: 1.7; white-space: pre-line; }
+.spurt-card .s-desc { font-size: 13px; color: var(--text-dim); line-height: 1.6; margin-top: 8px; white-space: pre-line; }
 .spurt-card.past .s-block .sb-text { font-size: 13px; color: var(--text-dim); }
 
 .clothes-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 18px; font-size: 12px; border-bottom: 1px solid var(--border); }
@@ -199,6 +200,9 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .cal-item .t { font-weight: 600; display: flex; align-items: center; gap: 6px; }
 .cal-del { margin-left: auto; border: none; background: none; color: var(--text-soft); cursor: pointer; font-size: 13px; line-height: 1; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 50%; flex: none; padding: 0; transition: background .15s ease, color .15s ease; }
 .cal-del:hover { color: #c0392b; background: rgba(192,57,43,.08); }
+/* В строках вкладок и списков ✕ — компактная и деликатная: маленькая, полупрозрачная, круг при наведении */
+.fam-row .cal-del, .llmn-row .cal-del, .budget-row .cal-del, .todo-item .cal-del, .shop-row .cal-del, #c-dyn .cal-del, .card-h .cal-del { width: 22px; height: 22px; font-size: 12px; opacity: .55; margin-left: 2px; }
+.fam-row .cal-del:hover, .llmn-row .cal-del:hover, .budget-row .cal-del:hover, .todo-item .cal-del:hover, .shop-row .cal-del:hover, #c-dyn .cal-del:hover, .card-h .cal-del:hover { opacity: 1; }
 /* Вкладки Семья / Бюджет / Помощник / динамические */
 .card-h { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 .card-h .cal-del { margin-left: auto; }
@@ -215,6 +219,13 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .budget-row .budget-amt { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
 .budget-row .cal-del { margin-left: 4px; }
 .budget-total { display: flex; justify-content: space-between; padding: 12px 4px 2px; font-weight: 700; font-size: 15px; border-top: 1px dashed rgba(0,0,0,.1); margin-top: 6px; }
+.budget-summary { display: flex; gap: 18px; flex-wrap: wrap; padding: 14px 18px 0; }
+.budget-summary .bs-item { display: flex; flex-direction: column; gap: 2px; }
+.budget-summary .bs-lbl { color: var(--text-soft); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+.budget-summary .bs-val { font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums; }
+.budget-summary .bs-val.neg { color: #c0392b; }
+.budget-summary .bs-val.pos { color: #2e7d32; }
+.card-sub { font-size: 12px; color: var(--text-soft); padding: 0 18px 4px; line-height: 1.5; }
 .budget-total .s-cat { color: var(--text-soft); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
 .budget-total .val { font-variant-numeric: tabular-nums; }
 .budget-total .val.neg { color: #c0392b; } .budget-total .val.pos { color: #2e7d32; }
@@ -228,6 +239,7 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .card.hero { border-color: var(--accent); border-top: 3px solid var(--accent); background: linear-gradient(180deg, #fff6ee, var(--card)); }
 .card.hero .card-h { background: #f6eee2; }
 .hero-stats { display: flex; gap: 28px; padding: 14px 18px 16px; flex-wrap: wrap; }
+.hero-stats .hs { display: flex; flex-direction: column; }
 .hero-stats .hs-v { font-family: var(--serif); font-size: 28px; font-weight: 600; color: var(--accent); line-height: 1.1; }
 .hero-stats .hs-l { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); margin-top: 3px; }
 .card.quiet { background: rgba(255,253,249,0.55); box-shadow: none; border-color: #e8e1d5; }
@@ -661,7 +673,10 @@ function renderBudget() {
   for (const g of byCat.values()) { totalIn += g.income; totalOut += g.expense; }
   const card = el('div', { class: 'card' });
   append(card, el('div', { class: 'card-h' }, '💰 Бюджет'));
-  append(card, el('div', { class: 'card-sub' }, `Доходы: ${totalIn.toLocaleString('ru-RU')} ₽ · Расходы: ${totalOut.toLocaleString('ru-RU')} ₽ · Остаток: ${(totalIn - totalOut).toLocaleString('ru-RU')} ₽`));
+  append(card, el('div', { class: 'budget-summary' },
+    el('span', { class: 'bs-item' }, el('span', { class: 'bs-lbl' }, 'Доходы'), el('span', { class: 'bs-val pos' }, `${totalIn.toLocaleString('ru-RU')} ₽`)),
+    el('span', { class: 'bs-item' }, el('span', { class: 'bs-lbl' }, 'Расходы'), el('span', { class: 'bs-val neg' }, `${totalOut.toLocaleString('ru-RU')} ₽`)),
+    el('span', { class: 'bs-item' }, el('span', { class: 'bs-lbl' }, 'Остаток'), el('span', { class: 'bs-val' + ((totalIn - totalOut) < 0 ? ' neg' : ' pos') }, `${(totalIn - totalOut).toLocaleString('ru-RU')} ₽`))));
   const bd = el('div', { style: 'padding: 8px 18px 14px' });
   for (const [cat, g] of byCat) {
     append(bd, el('div', { class: 'budget-cat' }, el('span', {}, cat), el('span', { class: 's-cat' }, `${g.expense ? '−' + g.expense.toLocaleString('ru-RU') + ' ₽' : ''}${g.income ? ' +' + g.income.toLocaleString('ru-RU') + ' ₽' : ''}`)));
