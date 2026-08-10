@@ -329,7 +329,7 @@ export function mergeState(current: Record<string, unknown>, incoming: Record<st
           return true;
         });
       }
-      out[k] = appendUnique(mergedBase as unknown[], iv.filter((x: any) => !(x && typeof x === 'object' && x._delete)));
+      out[k] = appendUnique(mergedBase as unknown[], iv.filter((x: any) => !(x && typeof x === 'object' && x._delete)), k);
     } else if (iv !== null && iv !== undefined) {
       out[k] = iv;
     }
@@ -338,13 +338,13 @@ export function mergeState(current: Record<string, unknown>, incoming: Record<st
   return out;
 }
 
-function appendUnique(base: unknown[], incoming: unknown[]): unknown[] {
+function appendUnique(base: unknown[], incoming: unknown[], arrayKey?: string): unknown[] {
   const out = [...base];
   const byKey = new Map<string, unknown>();
   for (const item of base) byKey.set(itemKey(item), item);
   for (const item of incoming) {
-    const key = itemKey(item);
-    const existing = byKey.get(key);
+    const itemK = itemKey(item);
+    const existing = byKey.get(itemK);
     if (existing !== undefined) {
       // Update existing item (merge fields) instead of appending a duplicate
       const idx = out.indexOf(existing);
@@ -352,11 +352,20 @@ function appendUnique(base: unknown[], incoming: unknown[]): unknown[] {
         out[idx] = { ...(existing as object), ...(item as object) };
       }
     } else {
+      // Советы: если текст совпадает с существующим (нормализованно) — не плодим дубль с другим title
+      if (arrayKey === 'tips') {
+        const nt = normText((item as any)?.text);
+        if (nt && base.some((b: any) => normText(b?.text) === nt)) continue;
+      }
       out.push(item);
-      byKey.set(key, item);
+      byKey.set(itemK, item);
     }
   }
   return out;
+}
+
+function normText(s: unknown): string {
+  return String(s || '').toLowerCase().replace(/[^a-zа-яё0-9]+/g, '');
 }
 
 function itemKey(item: unknown): string {
