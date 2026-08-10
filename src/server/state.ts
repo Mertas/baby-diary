@@ -1,6 +1,6 @@
 import { getDb } from '../db/index.js';
 
-const ARRAY_KEYS = new Set(['feeds', 'sleeps', 'events', 'tips', 'recipes', 'spurts', 'todos', 'shopping', 'reminders', 'calendar', 'tabs', 'family', 'budget', 'llmNotes']);
+const ARRAY_KEYS = new Set(['feeds', 'sleeps', 'events', 'tips', 'recipes', 'spurts', 'todos', 'shopping', 'reminders', 'calendar', 'tabs', 'family', 'budget', 'llmNotes', 'stock']);
 
 export function getState(chatId: string): Record<string, unknown> {
   const db = getDb();
@@ -381,6 +381,8 @@ function itemKey(item: unknown): string {
     const o = item as Record<string, unknown>;
     // Семья: ключ по имени (дедуп при переиздании), id модели не должен плодить дубли
     if (o.name && !o.timestamp && !o.title) return 'name:' + String(o.name) + '|' + String(o.role || '');
+    // Запасы: ключ по названию
+    if (o.name && o.qty !== undefined && !o.timestamp) return 'stock:' + String(o.name);
     if (o.id) return 'id:' + String(o.id);
     // События (feeds/sleeps/events) уникальны по времени — не дедуплицировать по title/типу,
     // иначе два «Пробуждения» или два «Замера» в разные дни заменят друг друга

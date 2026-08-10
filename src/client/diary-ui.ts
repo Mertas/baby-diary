@@ -206,9 +206,9 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 /* Вкладки Семья / Бюджет / Помощник / динамические */
 .card-h { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 .card-h .cal-del { margin-left: auto; }
-.fam-row, .llmn-row, .budget-row { display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-bottom: 1px solid rgba(0,0,0,.045); font-size: 14px; border-radius: 8px; margin: 0 -8px; transition: background .15s ease; }
-.fam-row:hover, .llmn-row:hover, .budget-row:hover { background: rgba(232,98,42,.05); }
-.fam-row .fam-ico, .llmn-row .llmn-ico { font-size: 14px; flex: none; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; background: var(--accent-soft); border-radius: 50%; }
+.fam-row, .llmn-row, .budget-row, .stock-row { display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-bottom: 1px solid rgba(0,0,0,.045); font-size: 14px; border-radius: 8px; margin: 0 -8px; transition: background .15s ease; }
+.fam-row:hover, .llmn-row:hover, .budget-row:hover, .stock-row:hover { background: rgba(232,98,42,.05); }
+.fam-row .fam-ico, .llmn-row .llmn-ico, .stock-row .stock-ico { font-size: 14px; flex: none; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; background: var(--accent-soft); border-radius: 50%; }
 .fam-row > span:nth-child(2), .llmn-row > span:nth-child(2) { flex: 1; min-width: 0; overflow-wrap: anywhere; line-height: 1.45; }
 .fam-row .fam-name { font-weight: 600; }
 .fam-row .fam-role { color: var(--text-dim); font-size: 12.5px; }
@@ -218,6 +218,10 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .budget-row .budget-note { color: var(--text-soft); font-size: 12px; flex: none; }
 .budget-row .budget-amt { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
 .budget-row .cal-del { margin-left: 4px; }
+.stock-row > span:nth-child(2) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.stock-row .stock-name { font-weight: 600; }
+.stock-row .stock-note { color: var(--text-soft); font-size: 12px; font-style: italic; }
+.stock-row .stock-qty { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--accent); }
 .budget-total { display: flex; justify-content: space-between; padding: 12px 4px 2px; font-weight: 700; font-size: 15px; border-top: 1px dashed rgba(0,0,0,.1); margin-top: 6px; }
 .budget-summary { display: flex; gap: 18px; flex-wrap: wrap; padding: 14px 18px 0; }
 .budget-summary .bs-item { display: flex; flex-direction: column; gap: 2px; }
@@ -330,6 +334,7 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
   <div class="content" id="c-clothes"></div>
   <div class="content" id="c-sad"></div>
   <div class="content" id="c-shopping"></div>
+  <div class="content" id="c-stock"></div>
   <div class="content" id="c-llmn"></div>
   <div class="content" id="c-family"></div>
   <div class="content" id="c-budget"></div>
@@ -485,6 +490,7 @@ function renderAll() {
   renderClothes();
   renderSad();
   renderShopping();
+  renderStock();
   renderLlmn();
   renderFamily();
   renderBudget();
@@ -624,6 +630,42 @@ function delBtn(onDel: () => void): HTMLElement {
   const b = el('button', { class: 'cal-del', title: 'Удалить' }, '✕');
   b.addEventListener('click', onDel);
   return b;
+}
+
+function renderStock() {
+  const c = $('#c-stock'); if (!c) return; clear(c);
+  const stock = S.stock || [];
+  if (!stock.length) { append(c, emptySection('Запасы пока не записаны.', 'Расскажите в чате, сколько чего осталось (подгузники, смесь, продукты) — я запомню и напомню купить заранее.')); return; }
+  const card = el('div', { class: 'card' });
+  append(card, el('div', { class: 'card-h' }, '📦 Запасы'));
+  append(card, el('div', { class: 'card-sub' }, 'Система спросит и напомнит купить, когда запас на исходе.'));
+  const bd = el('div', { style: 'padding: 8px 18px 14px' });
+  for (const s of stock) {
+    const name = s.name || '—';
+    const qty = (s.qty != null ? s.qty : '') + (s.unit ? ' ' + s.unit : '');
+    const row = el('div', { class: 'stock-row' }, el('span', { class: 'stock-ico' }, '📦'), el('span', {}, el('span', { class: 'stock-name' }, name), (s.note ? el('span', { class: 'stock-note' }, ' — ' + s.note) : null)), qty ? el('span', { class: 'stock-qty' }, qty) : null, delBtn(() => { saveState({ stock: [{ name, _delete: true }] }); }));
+    append(bd, row);
+  }
+  const add = el('button', { class: 'ask-btn' }, '＋ Добавить запас');
+  add.addEventListener('click', () => {
+    modal('Добавить запас', (b) => {
+      const mk = (ph: string) => { const i = el('input', { class: 'modal-inp', placeholder: ph }); append(b, i); return i; };
+      const ni = mk('Что (подгузники, смесь…)'), qi = mk('Сколько осталось (2 пачки, 500 мл…)'), no = mk('На сколько хватит / примечание');
+      (window as any).__stk = { ni, qi, no };
+    }, () => {
+      const { ni, qi, no } = (window as any).__stk;
+      const qv = String(qi.value || '').match(/(\d+(?:[.,]\d+)?)/);
+      const stock2 = [...(S.stock || [])];
+      const nm = ni.value.trim();
+      if (!nm) return;
+      const existing = stock2.find((x: any) => x.name === nm);
+      const item = { name: nm, qty: qv ? Number(qv[1].replace(',', '.')) : qi.value.trim(), unit: qi.value.trim().replace(/^\d+(?:[.,]\d+)?\s*/, '') || undefined, note: no.value.trim() || undefined };
+      if (existing) { Object.assign(existing, item); saveState({ stock: stock2 }); }
+      else { stock2.push(item); saveState({ stock: stock2 }); }
+    });
+  });
+  append(card, bd, add);
+  append(c, card);
 }
 
 function renderFamily() {
@@ -1191,7 +1233,7 @@ function renderSad() {
 function setupTabs() {
   const tb = $('#tb'); if (!tb) return;
   clear(tb);
-  const tabs = [['dash', 'Главная'], ['calendar', 'Календарь'], ['skills', 'Навыки'], ['tips', 'Советы'], ['recipes', 'Рецепты'], ['spurts', 'Скачки'], ['clothes', 'Гардероб'], ['sad', 'Сад'], ['shopping', 'Покупки'], ['family', 'Семья'], ['budget', 'Бюджет'], ['llmn', 'Помощник']];
+  const tabs = [['dash', 'Главная'], ['calendar', 'Календарь'], ['skills', 'Навыки'], ['tips', 'Советы'], ['recipes', 'Рецепты'], ['spurts', 'Скачки'], ['clothes', 'Гардероб'], ['sad', 'Сад'], ['shopping', 'Покупки'], ['stock', '📦 Запасы'], ['family', 'Семья'], ['budget', 'Бюджет'], ['llmn', 'Помощник']];
   // Динамические вкладки от LLM (персонализированные разделы: бизнес, хобби…)
   for (const t of S.tabs || []) {
     if (!t || !t.id || !t.title) continue;
