@@ -200,16 +200,27 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .cal-item .cal-del { margin-left: auto; border: none; background: none; color: var(--text-soft); cursor: pointer; font-size: 11px; padding: 0 2px; }
 .cal-item .cal-del:hover { color: #c0392b; }
 /* Вкладки Семья / Бюджет / Помощник / динамические */
-.card-h { display: flex; align-items: center; gap: 8px; }
+.card-h { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 .card-h .cal-del { margin-left: auto; }
-.fam-row, .llmn-row, .budget-row { display: flex; align-items: center; gap: 8px; padding: 7px 2px; border-bottom: 1px solid rgba(0,0,0,.05); font-size: 14px; }
-.fam-row .fam-ico, .llmn-row .llmn-ico { font-size: 16px; flex: none; }
-.fam-row > span:nth-child(2), .llmn-row > span:nth-child(2) { flex: 1; min-width: 0; }
-.fam-row .s-cat, .budget-row .s-cat { color: var(--text-dim); font-size: 12px; flex: none; }
-.budget-cat { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 2px 4px; font-weight: 700; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--text); }
-.budget-row > span:nth-child(2) { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.fam-row, .llmn-row, .budget-row { display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-bottom: 1px solid rgba(0,0,0,.045); font-size: 14px; border-radius: 8px; margin: 0 -8px; transition: background .15s ease; }
+.fam-row:hover, .llmn-row:hover, .budget-row:hover { background: rgba(232,98,42,.05); }
+.fam-row .fam-ico, .llmn-row .llmn-ico { font-size: 14px; flex: none; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; background: var(--accent-soft); border-radius: 50%; }
+.fam-row > span:nth-child(2), .llmn-row > span:nth-child(2) { flex: 1; min-width: 0; overflow-wrap: anywhere; line-height: 1.45; }
+.fam-row .fam-name { font-weight: 600; }
+.fam-row .fam-role { color: var(--text-dim); font-size: 12.5px; }
+.fam-row .s-cat, .llmn-row .s-cat { color: var(--text-soft); font-size: 12px; flex: none; font-style: italic; max-width: 40%; overflow-wrap: anywhere; }
+.budget-cat { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 4px 4px; font-weight: 700; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--text); }
+.budget-cat .s-cat { font-weight: 600; letter-spacing: 0; text-transform: none; font-size: 13px; color: var(--accent); font-variant-numeric: tabular-nums; }
+.budget-row .budget-note { color: var(--text-soft); font-size: 12px; flex: none; }
+.budget-row .budget-amt { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.budget-total { display: flex; justify-content: space-between; padding: 12px 4px 2px; font-weight: 700; font-size: 15px; border-top: 1px dashed rgba(0,0,0,.1); margin-top: 6px; }
+.budget-total .s-cat { color: var(--text-soft); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+.budget-total .val { font-variant-numeric: tabular-nums; }
+.budget-total .val.neg { color: #c0392b; } .budget-total .val.pos { color: #2e7d32; }
 .card .ask-btn { margin: 12px auto 8px; }
 #c-dyn .card { margin-bottom: 12px; }
+.dyn-body { padding: 10px 18px 14px; white-space: pre-line; line-height: 1.65; color: var(--text); font-size: 14px; overflow-wrap: anywhere; }
+.dyn-body strong { font-weight: 600; }
 .cal-item.imp { background: #fdecea; color: #c0392b; }
 .cal-day .cal-item { margin-bottom: 4px; }
 /* Типы карточек Главной: hero-сводка, тихий профиль, тёплый план, хроника на всю ширину */
@@ -611,15 +622,15 @@ function renderFamily() {
   const bd = el('div', { style: 'padding: 8px 18px 14px' });
   for (const m of fam) {
     const name = m.name || '—';
-    const role = m.role ? ' · ' + m.role : '';
-    const note = m.note ? ' — ' + m.note : '';
-    const row = el('div', { class: 'fam-row' }, el('span', { class: 'fam-ico' }, '👤'), el('span', {}, name + role + (note ? '' : '')), el('span', { class: 's-cat' }, note), delBtn(() => { saveState({ family: [{ name, _delete: true }] }); }));
+    const role = m.role || '';
+    const note = m.note || '';
+    const row = el('div', { class: 'fam-row' }, el('span', { class: 'fam-ico' }, '👤'), el('span', {}, el('span', { class: 'fam-name' }, name), role ? el('span', { class: 'fam-role' }, ' · ' + role) : null), note ? el('span', { class: 's-cat' }, note) : null, delBtn(() => { saveState({ family: [{ name, _delete: true }] }); }));
     append(bd, row);
   }
   const add = el('button', { class: 'ask-btn' }, '＋ Добавить');
   add.addEventListener('click', () => {
     modal('Добавить члена семьи', (b) => {
-      const inp = (ph: string) => { const i = el('input', { placeholder: ph }); i.style.cssText = 'display:block;width:100%;margin:6px 0;padding:6px 8px'; append(b, i); return i; };
+      const inp = (ph: string) => { const i = el('input', { class: 'modal-inp', placeholder: ph }); append(b, i); return i; };
       const ni = inp('Имя'), ri = inp('Кто (мама, папа, бабушка…)'), no = inp('Примечание (день рождения, особенности)');
       (window as any).__fam = { ni, ri, no };
     }, () => {
@@ -655,8 +666,9 @@ function renderBudget() {
     append(bd, el('div', { class: 'budget-cat' }, el('span', {}, cat), el('span', { class: 's-cat' }, `${g.expense ? '−' + g.expense.toLocaleString('ru-RU') + ' ₽' : ''}${g.income ? ' +' + g.income.toLocaleString('ru-RU') + ' ₽' : ''}`)));
     for (const it of g.items.slice(-6)) {
       const row = el('div', { class: 'budget-row' },
-        el('span', {}, (it.note || it.category || '') + (it.date ? ' · ' + String(it.date).slice(5) : '')),
-        el('span', {}, `${it.type === 'income' ? '+' : '−'}${Number(it.amount) || 0} ₽`),
+        el('span', {}, it.note || it.category || 'другое'),
+        it.date ? el('span', { class: 'budget-note' }, String(it.date).slice(5)) : null,
+        el('span', { class: 'budget-amt' }, `${it.type === 'income' ? '+' : '−'}${Number(it.amount) || 0} ₽`),
         delBtn(() => {
           if (it.id) saveState({ budget: [{ id: it.id, _delete: true }] });
           else saveState({ budget: [{ note: it.note || '', category: it.category || '', amount: it.amount, type: it.type, _delete: true }] });
@@ -667,8 +679,8 @@ function renderBudget() {
   const add = el('button', { class: 'ask-btn' }, '＋ Добавить трату/доход');
   add.addEventListener('click', () => {
     modal('Добавить запись', (b) => {
-      const mk = (ph: string, def?: string) => { const i = el('input', { placeholder: ph, value: def || '' }); i.style.cssText = 'display:block;width:100%;margin:6px 0;padding:6px 8px'; append(b, i); return i; };
-      const sel = el('select', {}); sel.style.cssText = 'display:block;width:100%;margin:6px 0;padding:6px 8px';
+      const mk = (ph: string, def?: string) => { const i = el('input', { class: 'modal-inp', placeholder: ph, value: def || '' }); append(b, i); return i; };
+      const sel = el('select', { class: 'modal-inp' });
       append(sel, el('option', { value: 'expense' }, 'Расход'), el('option', { value: 'income' }, 'Доход'));
       append(b, sel);
       const ci = mk('Категория (продукты, подгузники…)'), ai = mk('Сумма, ₽'), ni = mk('Примечание');
@@ -695,7 +707,7 @@ function renderDynTabs() {
     const head = el('div', { class: 'card-h' }, (t.emoji ? t.emoji + ' ' : '') + (t.title || ''));
     append(head, delBtn(() => { saveState({ tabs: [{ id: t.id, _delete: true }] }); }));
     append(card, head);
-    const bd = el('div', { style: 'padding: 10px 18px 14px; white-space: pre-line' }, t.content || '');
+    const bd = el('div', { class: 'dyn-body' }, t.content || '');
     append(card, bd);
     append(box, card);
   }
