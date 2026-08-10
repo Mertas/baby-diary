@@ -1166,7 +1166,11 @@ function setupTabs() {
   const tabs = [['dash', 'Главная'], ['calendar', 'Календарь'], ['skills', 'Навыки'], ['tips', 'Советы'], ['recipes', 'Рецепты'], ['spurts', 'Скачки'], ['clothes', 'Гардероб'], ['sad', 'Сад'], ['shopping', 'Покупки'], ['family', 'Семья'], ['budget', 'Бюджет'], ['llmn', 'Помощник']];
   // Динамические вкладки от LLM (персонализированные разделы: бизнес, хобби…)
   for (const t of S.tabs || []) {
-    if (t && t.id && t.title) tabs.push(['dyn-' + t.id, (t.emoji ? t.emoji + ' ' : '') + t.title]);
+    if (!t || !t.id || !t.title) continue;
+    // эмодзи уже в начале title («🍰 Сладкая Зоя») — не дублируем отдельным полем
+    const startsEmoji = /^[^\p{L}\p{N}]/u.test(String(t.title).trim());
+    const label = (t.emoji && !startsEmoji ? t.emoji + ' ' : '') + t.title;
+    tabs.push(['dyn-' + t.id, label]);
   }
   const els: HTMLElement[] = [];
   for (const [id, label] of tabs) {
