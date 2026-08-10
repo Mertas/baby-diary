@@ -220,7 +220,14 @@ export function sanitizeStateEvents(state: Record<string, unknown>, dayBase?: nu
       // Модель пишет время то в `time`, то в `start` — принимаем оба
       let ts = typeof o.timestamp === 'number' && !isNaN(o.timestamp) ? o.timestamp : NaN;
       if (isNaN(ts) || Math.abs(ts - now) > 400 * 86400000) {
-        ts = parseTimeHint(o.time ?? o.start, now, dayBase);
+        // Модель иногда дублирует: start «12:00» + time «15.08» (дата отдельно) — склеиваем «15.08 12:00»
+        let startHint: unknown = o.time ?? o.start;
+        if (o.start && o.time && typeof o.start === 'string' && typeof o.time === 'string') {
+          const tM = o.time.trim().match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?$/);
+          const sM = o.start.trim().match(/^(\d{1,2}):(\d{2})$/);
+          if (tM && sM) startHint = `${o.time.trim()} ${sM[1]}:${sM[2]}`;
+        }
+        ts = parseTimeHint(startHint, now, dayBase);
       } else {
         // Числовой timestamp от модели — «сейчас» с миллисекундами; при каждом переиздании
         // события он новый (19:59:11 → 19:59:18 → ...) и ломает дедуп. Приложение живёт
@@ -254,20 +261,21 @@ export function sanitizeStateEvents(state: Record<string, unknown>, dayBase?: nu
           if (typeof o.end === 'number' && !isNaN(o.end)) {
             end = Math.floor(o.end / 60000) * 60000;
           } else {
-            // end — время СУТОК. parseTimeHint сдвигает «ещё не наступившее» на вчера —
-            // для end это неверно (сон 12:10–13:40, обрабатываемый в 12:35, терял бы end).
-            // Ставим end на день начала сна; если end <= start — сон через полночь (+1 день).
-            const s = String(o.end).trim().toLowerCase();
-            const m = s.match(/(\d{1,2})[:.](\d{2})/);
-            if (m) {
-              const day0 = new Date(ts); day0.setHours(0, 0, 0, 0);
-              end = day0.getTime() + parseInt(m[1], 10) * 3600000 + parseInt(m[2], 10) * 60000;
+            // end может быть «14:30» или «14.08 14:30». Парсим от дня НАЧАЛА сна (или dayBase мамы):
+            // «14:30» → день сна 14:30; «14.08 14:30» → явная дата. Без сдвига «будущее→вчера» —
+            // иначе сон 12:10–13:40, обработанный в 12:35, терял бы end.
+            const endBase = dayBase != null ? dayBase : ts;
+            const d = parseTimeHint(o.end, now, endBase);
+            if (d != null && !isNaN(d)) {
+              end = d;
+              // сон через полночь: end ≤ start → следующий день
               if (end <= ts) end += 86400000;
             } else {
               end = Math.floor(now / 60000) * 60000;
             }
           }
-          if (end > now + 86400000) end = now; // end в будущем — считаем «сейчас»
+          // Защита от выдуманного будущего: end дальше 2 суток от начала сна — сбрасываем
+          if (end > ts + 2 * 86400000) end = now;
           if (end <= ts) delete o.end; else o.end = end;
         }
       }
