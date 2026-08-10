@@ -173,21 +173,41 @@ export function parseLlmResponse(raw: string): LlmResponse | null {
 // --- Проактивное дозаполнение пустых разделов (навыки/скачки/календарь-вехи) ---
 const fillAttempts = new Map<string, number>();
 
-async function fillEmptySections(chatId: string, merged: Record<string, unknown>, emit: Broadcaster): Promise<void> {
+async function fillEmptySections(chatId: string, merged: Record<string, unknown>, emit: Broadcaster, skipSkills = false): Promise<void> {
   const s = merged as Record<string, any>;
   const bd = s.birthDate as string | undefined;
   const ageMs = bd ? Date.now() - new Date(bd).getTime() : NaN;
   const ageDays = isNaN(ageMs) ? NaN : ageMs / 86400000;
   const ageWeeks = ageDays / 7;
-  const needSkills = Array.isArray(s.skills) ? s.skills.length === 0 : true;
+  // Навыки: при знакомстве модель должна провести ОПРОС с вариантами. Пока она сама не задаёт вопросы
+  // с choices — сервер генерирует их (макс. 2 вопроса), затем дозаполняет skills автоматически.
+  const attempts = fillAttempts.get(chatId) || 0;
+  if (attempts >= 3) return;
+  fillAttempts.set(chatId, attempts + 1);
+  const skillsEmpty = Array.isArray(s.skills) ? s.skills.length === 0 : true;
+  if (skillsEmpty && !skipSkills && attempts < 2) {
+    // ОПРОС: сервер задаёт вопрос о навыках с вариантами отдельным сообщением
+    try {
+      const msgs = buildMessageHistory(chatId);
+      msgs.push({ role: 'user', content: 'Раздел навыков пуст, идёт знакомство с ребёнком. Задай ОДИН короткий вопрос о навыках ребёнка по его возрасту с вариантами ответа. Верни ТОЛЬКО JSON: {"text":"короткий вопрос","choices":["Да, уверенно","Почти","Пока нет","Другое"]} — без state.' });
+      const res = await openai.chat.completions.create({ model: DEEPSEEK_MODEL, messages: msgs, max_tokens: 300, stream: false, temperature: 0.7 });
+      const parsed = parseLlmResponse(res.choices?.[0]?.message?.content || '');
+      if (parsed?.text && Array.isArray(parsed.choices) && parsed.choices.length) {
+        const db = getDb();
+        const ch = parsed.choices.map(String).slice(0, 4);
+        db.prepare('INSERT INTO llm_messages (chat_id, role, content, choices) VALUES (?, ?, ?, ?)').run(chatId, 'agent', parsed.text, JSON.stringify(ch));
+        emit('update', `<div class="message message-agent" data-choices="${escapeAttr(JSON.stringify(ch))}">${escapeHtml(parsed.text)}</div>`);
+        console.log('[fill] survey question:', parsed.text.slice(0, 60));
+      }
+    } catch (e) { console.log('[fill] survey ERR', String(e).slice(0, 200)); }
+    return;
+  }
+  const needSkills = skillsEmpty && attempts >= 2;
   const needSpurts = (!Array.isArray(s.spurts) || s.spurts.length === 0) && !isNaN(ageWeeks) && ageWeeks >= 5 && ageWeeks <= 26;
   const cal = Array.isArray(s.calendar) ? s.calendar : [];
   const hasMed = cal.some((c: any) => /[💉🩺⚕️🎂]/.test(String(c.title || '')));
   const needCal = !hasMed && !isNaN(ageDays) && ageDays <= 730;
   if (!needSkills && !needSpurts && !needCal) return;
-  const attempts = fillAttempts.get(chatId) || 0;
-  if (attempts >= 2) return;
-  fillAttempts.set(chatId, attempts + 1);
   console.log('[fill]', chatId.slice(0, 8), 'attempt', attempts + 1, 'skills:', needSkills, 'spurts:', needSpurts, 'cal:', needCal);
 
   const asks: string[] = [];
@@ -302,7 +322,8 @@ export async function handlePrompt(chatId: string, prompt: string, modelName: st
       emit('state', merged);
       // Проактивное дозаполнение пустых разделов: модель часто отвечает только данными дня,
       // а вкладки (навыки/скачки/календарь-вехи) остаются пустыми. Тихо дозаполняем (макс. 2 попытки на чат).
-      fillEmptySections(chatId, merged, emit).catch(() => {});
+      // Если модель задала вопрос с вариантами (идёт опрос про навыки) — skills не трогаем.
+      fillEmptySections(chatId, merged, emit, choices != null).catch(() => {});
     }
     emit('done', null);
   } catch (err) {
