@@ -15,12 +15,14 @@ npm run dev          # сборка клиента + tsx watch сервера
 
 Требования: Node 18+, [ffmpeg](https://ffmpeg.org) в PATH (конвертация MOV→MP4 и превью; фото работают и без него).
 
-> ⚠️ **Версия Node.** `better-sqlite3` — нативный модуль, собранный под конкретную версию Node (ABI). Если в системе несколько Node (например, nvm) и при установке/запуске используются разные — будет ошибка `NODE_MODULE_VERSION`. Используйте **одну и ту же версию Node** для `npm install` и `npm run dev`. При смене версии Node пересоберите модуль:
+> ⚠️ **Версия Node зафиксирована на 20.x** (см. `.nvmrc`, `engines` в `package.json`). `better-sqlite3` — нативный модуль, собранный под конкретный ABI (Node 20 → `NODE_MODULE_VERSION 115`). Если в системе несколько Node (nvm) и при установке/запуске используются разные — будет ошибка `NODE_MODULE_VERSION`. Перед `dev`/`start` запускается `scripts/check-node.cjs`, который прерывает запуск с подсказкой. При смене версии Node:
 > ```bash
+> nvm use 20.19.5
 > npm rebuild better-sqlite3
 > # или скачать предсобранный бинарник без компилятора:
 > node node_modules/prebuild-install/bin.js --directory node_modules/better-sqlite3
 > ```
+> Для перехода на другую мажорную версию Node обновите `.nvmrc` и `engines.node`, затем пересоберите модуль.
 
 ## Как это устроено
 

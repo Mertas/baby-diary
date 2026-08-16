@@ -3,7 +3,12 @@
   "version": "1.0.0",
   "description": "Baby diary with integrated LLM chat",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0 <21"
+  },
   "scripts": {
+    "predev": "node scripts/check-node.cjs",
+    "prestart": "node scripts/check-node.cjs",
     "dev": "npm run build:client && tsx watch src/server/index.ts",
     "start": "npm run build:client && tsx src/server/index.ts",
     "build:client": "esbuild src/client/*.ts --outdir=dist/client/ --format=iife --bundle",
