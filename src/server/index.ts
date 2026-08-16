@@ -2,7 +2,7 @@ import express from 'express';
 import http from 'http';
 import { WebSocketServer } from 'ws';
 import { getDb, closeDb } from '../db/index.js';
-import { PORT } from './config.js';
+import { PORT, DEEPSEEK_MODEL, DEEPSEEK_FLASH_MODEL } from './config.js';
 import { setupWebSocket, broadcast, setReplayHandler } from './ws.js';
 import { handlePrompt, stopGeneration, isProcessing } from './llm.js';
 import { getState, saveState, mergeState, sanitizeStateEvents } from './state.js';
@@ -110,9 +110,12 @@ app.post('/chat/:id/prompt', (req, res) => {
   if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) return res.status(400).json({ error: 'Empty prompt' });
   if (!checkClient(req, chatId)) return res.status(401).json({ error: 'Invalid credentials' });
   if (isProcessing(chatId)) return res.status(429).json({ error: 'Already processing' });
+  // Модель — только из белого списка (клиент не должен слать произвольную строку)
+  const allowedModels = new Set(['deepseek-chat', 'deepseek-v4-pro', 'deepseek-v4-flash', DEEPSEEK_MODEL, DEEPSEEK_FLASH_MODEL]);
+  const safeModel = typeof model === 'string' && allowedModels.has(model) ? model : undefined;
   res.json({ status: 'processing' });
 
-  handlePrompt(chatId, prompt, model, (type, data) => {
+  handlePrompt(chatId, prompt, safeModel, (type, data) => {
     switch (type) {
       case 'user-bubble': broadcast(chatId, '/body', data as string); break;
       case 'thinking': broadcast(chatId, '/chat/stream', JSON.stringify({ path: '/chat/stream', type: 'thinking', value: data })); break;
@@ -405,13 +408,20 @@ server.listen(PORT, () => {
   console.log(`BabyDiary running at http://localhost:${PORT}`);
   // Догнать незавершённые конвертации после рестарта (очередь восстанавливается из .tmp-файлов)
   for (const chatId of restoreMediaQueue()) void processMediaQueue(chatId);
-  // Ротация llm_logs: полные промпты+ответы копятся мегабайтами на каждое сообщение — держим 30 дней
+  rotateLogs();
+  // llm_logs (полные промпты+ответы) растут мегабайтами — чистим ещё и по расписанию, не только при старте
+  setInterval(rotateLogs, 3600 * 1000).unref();
+});
+process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);
+
+/** Удалить старые записи llm_logs (14 дней — компактный период для отладки). */
+function rotateLogs(): void {
   try {
-    const cutoff = Date.now() - 30 * 86400000;
+    const cutoff = Date.now() - 14 * 86400000;
     const { changes } = getDb().prepare('DELETE FROM llm_logs WHERE created_at < ?').run(cutoff);
     if (changes > 0) console.log(`[logs] cleaned ${changes} old llm_logs rows`);
   } catch (e) { console.error('[logs] rotation failed:', e); }
-});
+}
 process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);
 
 function shutdown() {

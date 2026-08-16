@@ -818,7 +818,7 @@ function setupChat() {
   if (mp && mf) {
     const setMd = (m: string) => { mdl = m; mp.classList.toggle('active', m === 'deepseek-v4-pro'); mf.classList.toggle('active', m !== 'deepseek-v4-pro'); };
     mp.addEventListener('click', () => setMd('deepseek-v4-pro'));
-    mf.addEventListener('click', () => setMd('deepseek-chat'));
+    mf.addEventListener('click', () => setMd('deepseek-v4-flash'));
   }
   const cu = $('#cud');
   if (cu) cu.addEventListener('click', () => { window.PromptUI.messages.undo(); });

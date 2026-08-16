@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { getDb } from '../db/index.js';
-import { DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL, LLM_TIMEOUT_MS } from './config.js';
+import { DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL, DEEPSEEK_FLASH_MODEL, LLM_TIMEOUT_MS } from './config.js';
 import { getState, saveState, mergeState, sanitizeStateEvents, extractMomDay, stripSensitiveState } from './state.js';
 import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
@@ -203,7 +203,7 @@ async function fillEmptySections(chatId: string, merged: Record<string, unknown>
     try {
       const msgs = buildMessageHistory(chatId);
       msgs.push({ role: 'user', content: 'Раздел навыков пуст, идёт знакомство с ребёнком. Задай ОДИН короткий вопрос о навыках ребёнка по его возрасту с вариантами ответа. Верни ТОЛЬКО JSON: {"text":"короткий вопрос","choices":["Да, уверенно","Почти","Пока нет","Другое"]} — без state.' });
-      const res = await openai.chat.completions.create({ model: DEEPSEEK_MODEL, messages: msgs, max_tokens: 300, stream: false, temperature: 0.7 });
+      const res = await openai.chat.completions.create({ model: DEEPSEEK_FLASH_MODEL, messages: msgs, max_tokens: 300, stream: false, temperature: 0.3, response_format: { type: 'json_object' } });
       const parsed = parseLlmResponse(res.choices?.[0]?.message?.content || '');
       if (parsed?.text && Array.isArray(parsed.choices) && parsed.choices.length) {
         const db = getDb();
@@ -239,7 +239,7 @@ async function fillEmptySections(chatId: string, merged: Record<string, unknown>
       + `Верни ТОЛЬКО JSON: {"state": { ...только эти разделы... }} — без текста, без других разделов. Схема строго как в системном промпте.`,
   });
   try {
-    const res = await openai.chat.completions.create({ model: DEEPSEEK_MODEL, messages, max_tokens: 6000, stream: false, temperature: 0.6 });
+    const res = await openai.chat.completions.create({ model: DEEPSEEK_MODEL, messages, max_tokens: 6000, stream: false, temperature: 0.4, response_format: { type: 'json_object' } });
     const raw = res.choices?.[0]?.message?.content || '';
     console.log('[fill] raw len', raw.length, raw.slice(0, 80).replace(/\n/g, ' '));
     const parsed = parseLlmResponse(raw);
@@ -273,7 +273,15 @@ export async function handlePrompt(chatId: string, prompt: string, modelName: st
     messages.push({ role: 'user', content: prompt });
 
     const stream = await openai.chat.completions.create(
-      { model: modelName || DEEPSEEK_MODEL, messages, stream: true, max_tokens: 8192 },
+      {
+        model: modelName || DEEPSEEK_MODEL,
+        messages,
+        stream: true,
+        max_tokens: 8192,
+        // JSON mode + низкая температура: резко снижает долю не-JSON ответов (было ~48% без '{' → ретраи)
+        temperature: 0.3,
+        response_format: { type: 'json_object' },
+      },
       { signal: aborter.signal },
     );
 
@@ -291,10 +299,19 @@ export async function handlePrompt(chatId: string, prompt: string, modelName: st
       const retryMsgs = buildMessageHistory(chatId);
       retryMsgs.push(
         { role: 'assistant', content: fullResponse.trim() },
-        { role: 'user', content: 'Ты ответила обычным текстом, но данные не сохранились. Верни ответ ТОЛЬКО в формате JSON: {"text":"что сказать","state":{...данные которые нужно сохранить...}}. Если данных для state нет — верни {"text":"...","state":{}}. Схема state — строго как в системном промпте: кормления в feeds (amount числом), сны в sleeps, остальное в events; время — текстом в time/start/end (если мама назвала дату дня — все события с ней, например "20.07 07:30"). Если мама упоминала ВЕС или РОСТ — обязательно включи в state: weight/height и событие {title:"Замер"}. Если мама просила СОХРАНИТЬ или ОБНОВИТЬ советы/рецепты/списки/покупки — включи их в state (tips/recipes/todos/shopping; при обновлении — тот же title, дополненный text). Плюс проактивно: если в calendar ещё нет ближайших медицинских вех (прививки/осмотры по нацкалендарю на 3 месяца вперёд от birthDate) — добавь их с эмодзи (💉/🩺/⚕️); если навыки (skills) не обновлялись 2+ недели — добавь skills по возрасту ребёнка; если в разговоре была содержательная тема (колики, сон, купание и т.п.) — добавь 2-3 совета в tips; если ребёнку 5–25 недель и spurts пуст или не обновлялись 3+ недели — добавь актуальный скачок роста (неделя + описание). Проверь свой state перед отправкой: всё, что мама назвала, — присутствует.' },
+        // Ретрай НЕ дублирует бизнес-правила (они уже в системном промпте) — только формат.
+        // Схема и правила сохранения в системном промпте, json_object гарантирует валидность.
+        { role: 'user', content: 'Ты ответила обычным текстом, а не JSON. Верни ТОЛЬКО валидный JSON без текста вне него: {"text":"что сказать маме","state":{...данные для сохранения...}}. state может быть {} если данных нет. Схема state — строго как в системном промпте. Проверь: всё, что назвала мама, присутствует в state.' },
       );
       const retryStream = await openai.chat.completions.create(
-        { model: modelName || DEEPSEEK_MODEL, messages: retryMsgs, stream: true, max_tokens: 8192 },
+        {
+          model: modelName || DEEPSEEK_MODEL,
+          messages: retryMsgs,
+          stream: true,
+          max_tokens: 8192,
+          temperature: 0.3,
+          response_format: { type: 'json_object' },
+        },
         { signal: aborter.signal },
       );
       let retryResp = '';
@@ -329,7 +346,7 @@ export async function handlePrompt(chatId: string, prompt: string, modelName: st
           { role: 'system' as const, content: 'Ты генерируешь варианты ответа к вопросу. Верни ТОЛЬКО JSON: {"choices": ["Вариант1","Вариант2","Вариант3","Свой вариант"], "multi": true|false} — 3–4 коротких варианта, последний всегда "Свой вариант". multi=true, если можно выбрать НЕСКОЛЬКО вариантов одновременно.' },
           { role: 'user' as const, content: 'Вопрос: ' + parsed.text },
         ];
-        const gen = await openai.chat.completions.create({ model: DEEPSEEK_MODEL, messages: genMsgs, max_tokens: 1200, stream: false, temperature: 0.6 });
+        const gen = await openai.chat.completions.create({ model: DEEPSEEK_FLASH_MODEL, messages: genMsgs, max_tokens: 1200, stream: false, temperature: 0.3, response_format: { type: 'json_object' } });
         const gRaw = gen.choices?.[0]?.message?.content || '';
         console.log('[choices] raw:', JSON.stringify(gRaw).slice(0, 200), '| finish:', (gen.choices?.[0] as any)?.finish_reason);
         const g = parseLlmResponse(gRaw);
