@@ -348,6 +348,31 @@ export function stripSensitiveState(state: Record<string, unknown>): Record<stri
   return out;
 }
 
+/** Проекция state для контекста LLM: события за последние EVENT_DAYS дней (агрегат поверх),
+ *  справочные массивы — целиком (они растут медленно), базовые поля — целиком.
+ *  Полный state (сотни событий, месяцы истории) в промпте — главный фактор роста токенов. */
+export function contextProjection(state: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...state };
+  const now = Date.now();
+  const EVENT_DAYS = 14;
+  const cut = now - EVENT_DAYS * 86400000;
+  const sliceEvents = (arr: unknown[]): unknown[] =>
+    arr.filter((e) => { const r = e as Record<string, unknown>; return !!e && typeof e === 'object' && typeof r.timestamp === 'number' && (r.timestamp as number) >= cut; });
+  for (const k of ['feeds', 'sleeps', 'events'] as const) {
+    const arr = out[k];
+    if (!Array.isArray(arr)) continue;
+    const recent = sliceEvents(arr as unknown[]);
+    out[k] = recent;
+    if (recent.length < (arr as unknown[]).length) {
+      out[k + 'Summary' as never] = {
+        note: `Показаны события за последние ${EVENT_DAYS} дней (${(arr as unknown[]).length - recent.length} более старых скрыты)`,
+        total: (arr as unknown[]).length,
+      };
+    }
+  }
+  return out;
+}
+
 export function saveState(chatId: string, state: Record<string, unknown>): void {
   const db = getDb();
   const now = Date.now();

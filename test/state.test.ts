@@ -1,7 +1,7 @@
 // Тесты чистых функций нормализации state (без БД).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseTimeHint, sanitizeStateEvents, mergeState, eventKey, itemKey } from '../src/server/state.js';
+import { parseTimeHint, sanitizeStateEvents, mergeState, eventKey, itemKey, contextProjection, stripSensitiveState } from '../src/server/state.js';
 
 // ─── parseTimeHint ──────────────────────────────────────────
 
@@ -179,4 +179,34 @@ test('itemKey: события уникальны по времени (два р�
 test('itemKey: календарь — по (date|title)', () => {
   const k = itemKey({ date: '2026-08-20', title: 'Педиатр' });
   assert.equal(k, 'cal:2026-08-20|Педиатр');
+});
+
+// ─── contextProjection / stripSensitiveState ────────────────
+
+test('contextProjection: старые события скрываются, свежие остаются', () => {
+  const now = Date.now();
+  const out = contextProjection({
+    name: 'Миша',
+    feeds: [
+      { timestamp: now - 2 * 86400000, amount: 110 }, // свежее
+      { timestamp: now - 100 * 86400000, amount: 90 }, // старое
+    ],
+  }) as { feeds: any[]; feedsSummary?: any };
+  assert.equal(out.feeds.length, 1);
+  assert.equal(out.feeds[0].amount, 110);
+  assert.ok(out.feedsSummary, 'добавляется сводка о скрытых');
+  assert.equal(out.feedsSummary.total, 2);
+});
+
+test('contextProjection: базовые поля и справочники не трогаются', () => {
+  const out = contextProjection({ name: 'Миша', skills: [{ skill: 'сидит' }], calendar: [{ title: 'Прививка' }] }) as any;
+  assert.equal(out.name, 'Миша');
+  assert.equal(out.skills.length, 1);
+  assert.equal(out.calendar.length, 1);
+});
+
+test('stripSensitiveState: удаляет gps из exif фото', () => {
+  const out = stripSensitiveState({ photos: [{ id: 'a', exif: { taken: '2026:08:14 12:00:00', gps: { lat: 55.7, lon: 37.6 } } }] }) as { photos: any[] };
+  assert.equal(out.photos[0].exif.gps, undefined);
+  assert.equal(out.photos[0].exif.taken, '2026:08:14 12:00:00');
 });

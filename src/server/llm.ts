@@ -1,8 +1,8 @@
 import OpenAI from 'openai';
 import { getDb } from '../db/index.js';
 import { DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL, DEEPSEEK_FLASH_MODEL, LLM_TIMEOUT_MS } from './config.js';
-import { getState, saveState, mergeState, sanitizeStateEvents, extractMomDay, stripSensitiveState } from './state.js';
-import { readFileSync, existsSync } from 'fs';
+import { getState, saveState, mergeState, sanitizeStateEvents, extractMomDay, stripSensitiveState, contextProjection } from './state.js';
+import { readFileSync, statSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import type { LlmMessage } from '../db/schema.js';
@@ -30,24 +30,52 @@ export function isProcessing(chatId: string): boolean {
   return activeRequests.has(chatId);
 }
 
+const PROMPT_PATH = resolve(__dirname, '..', '..', 'baby-diary-prompt.md');
+let cachedPrompt: { mtime: number; text: string } | null = null;
+
+/** Промпт с диска, кэшированный по mtime (не перечитываем на каждый вызов). */
 function getSystemPrompt(): string {
-  const promptPath = resolve(__dirname, '..', '..', 'baby-diary-prompt.md');
-  if (existsSync(promptPath)) { return readFileSync(promptPath, 'utf-8'); }
-  return 'You are a helpful assistant for a baby diary app.';
+  try {
+    const st = statSync(PROMPT_PATH);
+    if (!cachedPrompt || cachedPrompt.mtime !== st.mtimeMs) {
+      cachedPrompt = { mtime: st.mtimeMs, text: readFileSync(PROMPT_PATH, 'utf-8') };
+    }
+    return cachedPrompt.text;
+  } catch {
+    return 'You are a helpful assistant for a baby diary app.';
+  }
 }
+
+// Бюджет истории в символах (~0.4 токена/символ на русском): 32K симв. ≈ 12-14K токенов.
+// Вместо жёсткого LIMIT 40 сообщений (они бывают по 7 КБ) — берём последние сообщения
+// в пределах бюджета, но не менее 4, чтобы контекст не схлопывался в одну реплику.
+const HISTORY_CHAR_BUDGET = 32000;
 
 function buildMessageHistory(chatId: string): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
   const db = getDb();
-  const messages = db.prepare(
-    "SELECT role, content FROM (SELECT role, content, created_at FROM llm_messages WHERE chat_id = ? ORDER BY created_at DESC LIMIT ?) ORDER BY created_at ASC"
-  ).all(chatId, 40) as Pick<LlmMessage, 'role' | 'content'>[];
+  const rows = db.prepare(
+    "SELECT role, content FROM (SELECT role, content, created_at FROM llm_messages WHERE chat_id = ? ORDER BY created_at DESC LIMIT 60) ORDER BY created_at ASC"
+  ).all(chatId) as Pick<LlmMessage, 'role' | 'content'>[];
+
+  // Токен-бюджет: идём с конца (последние — важнее), пока не упрёмся в лимит
+  let chars = 0;
+  let from = rows.length;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    if (chars + rows[i].content.length > HISTORY_CHAR_BUDGET && rows.length - i >= 4) break;
+    chars += rows[i].content.length;
+    from = i;
+  }
+  const messages = rows.slice(from);
 
   // Append current persistent state so the LLM knows what is filled and what is missing
   let systemPrompt = getSystemPrompt();
+  let state: Record<string, unknown> = {};
   try {
-    const state = getState(chatId);
+    state = getState(chatId);
     // stripSensitiveState: в контекст не попадают GPS-координаты фото (геолокация семьи)
-    systemPrompt += '\n\n# ТЕКУЩЕЕ СОСТОЯНИЕ ДНЕВНИКА (JSON)\n' + JSON.stringify(stripSensitiveState(state), null, 1) +
+    // contextProjection: события — только за последние 14 дней (+ счётчик скрытых), иначе токены растут ×27 за недели
+    systemPrompt += '\n\n# ТЕКУЩЕЕ СОСТОЯНИЕ ДНЕВНИКА (JSON)\n' +
+      JSON.stringify(contextProjection(stripSensitiveState(state)), null, 1) +
       '\n\nЕсли какие-то разделы пустые или незаполненные — предложи их заполнить. Все новые данные передавай в state.';
   } catch { /* state unavailable */ }
 
@@ -58,8 +86,7 @@ function buildMessageHistory(chatId: string): Array<{ role: 'system' | 'user' | 
 
   // Собственный дополнительный промпт ассистента: заметки, которые LLM сама решила помнить
   try {
-    const st = getState(chatId);
-    const notes = (st as Record<string, unknown>).llmNotes;
+    const notes = (state as Record<string, unknown>).llmNotes;
     if (Array.isArray(notes) && notes.length) {
       const lines = notes.map((n: unknown) => '- ' + (n && typeof n === 'object' ? String((n as Record<string, unknown>).note ?? '') : String(n))).filter(Boolean);
       if (lines.length) {
