@@ -18,8 +18,14 @@ const FEED_TYPE_MAP: Record<string, string> = {
   прикорм: 'прикорм', puree: 'прикорм', solid: 'прикорм',
 };
 
-function parseTimeHint(hint: unknown, now: number, dayBase?: number): number {
-  if (typeof hint !== 'string' || !hint.trim()) return dayBase != null ? dayBase + (now % 86400000) : Math.floor(now / 60000) * 60000;
+/** Локальное время суток (мс от начала локального дня) — для «в тот же час» в день мамы. */
+function timeOfDay(now: number): number {
+  const d = new Date(now); d.setHours(0, 0, 0, 0);
+  return now - d.getTime();
+}
+
+export function parseTimeHint(hint: unknown, now: number, dayBase?: number): number {
+  if (typeof hint !== 'string' || !hint.trim()) return dayBase != null ? dayBase + timeOfDay(now) : Math.floor(now / 60000) * 60000;
   const s = hint.trim().toLowerCase();
   // Дата «25.09» / «25.09.2026» / «25.09 10:30» — с точкой-разделителем (время — с двоеточием «10:30»).
   // «05.06» = 5 июня; «5.30» = не дата (месяца 30 нет) → время 5:30.
@@ -43,7 +49,7 @@ function parseTimeHint(hint: unknown, now: number, dayBase?: number): number {
   const m = s.match(/(\d{1,2})[:.](\d{2})/);
   if (!m) {
     // «ночью», «утром», «только что» — без времени: день мамы (если задан) или сейчас
-    return dayBase != null ? dayBase + (now % 86400000) : Math.floor(now / 60000) * 60000;
+    return dayBase != null ? dayBase + timeOfDay(now) : Math.floor(now / 60000) * 60000;
   }
   const h = parseInt(m[1], 10), min = parseInt(m[2], 10);
   if (dayBase != null) {
@@ -141,7 +147,7 @@ function sanitizeCalendar(items: unknown): unknown[] {
  *  note и порядок полей НЕ участвуют — переизданное событие с другим набором полей
  *  (например, с note vs без, из events-роутинга vs прямых feeds) должно схлопываться.
  *  У сна end не в ключе — при повторе end обновится merge-полями, а не создаст дубль. */
-function eventKey(o: Record<string, unknown>): string {
+export function eventKey(o: Record<string, unknown>): string {
   const ts = o.timestamp ?? '';
   const type = o.type ?? '';
   if (type === 'nap' || type === 'night') return `sl|${ts}|${type}`;
@@ -365,7 +371,10 @@ export function mergeState(current: Record<string, unknown>, incoming: Record<st
           if (x && typeof x === 'object') {
             if (x.id && delById.has(String(x.id))) return false;
             if (delByName.has(String(x.name || ''))) return false;
-            if (!x.id && (delByKey.has(`${x.title}|${x.date}|${x.time || ''}|${x.note || ''}|${x.timestamp ?? ''}`) || delByKeyNoTs.has(`${x.title}|${x.date}|${x.time || ''}|${x.note || ''}`))) return false;
+            // Маркер без id матчится по ключу (title|date|time|note|timestamp) —
+            // в т.ч. с записями, у которых id есть (легаси-записи, модель могла не скопировать id).
+            if (delByKey.has(`${x.title}|${x.date}|${x.time || ''}|${x.note || ''}|${x.timestamp ?? ''}`) ||
+                delByKeyNoTs.has(`${x.title}|${x.date}|${x.time || ''}|${x.note || ''}`)) return false;
           }
           return true;
         });
@@ -409,7 +418,7 @@ function normText(s: unknown): string {
   return String(s || '').toLowerCase().replace(/[^a-zа-яё0-9]+/g, '');
 }
 
-function itemKey(item: unknown): string {
+export function itemKey(item: unknown): string {
   if (item && typeof item === 'object') {
     const o = item as Record<string, unknown>;
     // Семья: ключ по имени (дедуп при переиздании), id модели не должен плодить дубли

@@ -1,4 +1,5 @@
 // bridge.ts — PromptUI API: messages, filesystem, UI, DOM helpers
+export {}; // внешний модуль: нужно для declare global ниже
 
 interface PromptUIMessage {
   id: string;

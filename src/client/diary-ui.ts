@@ -1,4 +1,5 @@
 // diary-ui.ts — Baby Diary, Hermès-style
+export {}; // внешний модуль (для typecheck: изолированный скоуп, общение через window.PromptUI)
 const { el, $, $$, on, append, clear } = window.PromptUI;
 
 window.PromptUI.ui.set(`
@@ -1030,10 +1031,10 @@ function getExifInfo(buf: ArrayBuffer): { orientation: number; taken: string | n
           if (bo !== 0x4949 && bo !== 0x4d4d) return info;
           const little = bo === 0x4949;
           const ifd0 = dv.getUint32(p + 4, little);
-          const readIfd = (base: number): Map<number, [number, number]> => {
+          const readIfd = (base: number): Map<number, [number, number] | number> => {
             // p уже указывает на начало TIFF (после 'Exif\0\0') — офсеты IFD относительны p
             const tiff = p;
-            const tags = new Map<number, [number, number]>();
+            const tags = new Map<number, [number, number] | number>();
             let q = tiff + ifd0;
             const n = dv.getUint16(q, little);
             q += 2;
@@ -1050,17 +1051,17 @@ function getExifInfo(buf: ArrayBuffer): { orientation: number; taken: string | n
           const ifd0Tags = readIfd(ifd0);
           const valPtr = (tag: number, type: number, count: number): number => {
             const size = (type === 1 || type === 7) ? 1 : type === 2 ? 1 : type === 3 ? 2 : type === 4 || type === 9 ? 4 : 8;
-            const dataOff = ifd0Tags.get(-(tag + 100000)) ?? 0;
+            const dataOff = (ifd0Tags.get(-(tag + 100000)) ?? 0) as number;
             return (size * count > 4 || type === 5 || type === 10) ? (p + dv.getUint32(dataOff, little)) : dataOff;
           };
           // Ориентация
           if (ifd0Tags.has(0x0112)) {
-            const [t, c] = ifd0Tags.get(0x0112)!;
+            const [t, c] = ifd0Tags.get(0x0112) as [number, number];
             info.orientation = dv.getUint16(valPtr(0x0112, t, c), little) || 1;
           }
           // ExifIFD → дата съёмки
           if (ifd0Tags.has(0x8769)) {
-            const [t, c] = ifd0Tags.get(0x8769)!;
+            const [t, c] = ifd0Tags.get(0x8769) as [number, number];
             const exifIfd = dv.getUint32(valPtr(0x8769, t, c), little);
             const tiff = p;
             let q = tiff + exifIfd;
@@ -1081,12 +1082,12 @@ function getExifInfo(buf: ArrayBuffer): { orientation: number; taken: string | n
           // Некоторые обработчики (PIL и др.) пишут DateTimeOriginal прямо в IFD0 — fallback
           // valPtr уже возвращает АБСОЛЮТНУЮ позицию данных — повторно p/офсет применять нельзя
           if (!info.taken && ifd0Tags.has(0x9003)) {
-            const [t, c] = ifd0Tags.get(0x9003)!;
+            const [t, c] = ifd0Tags.get(0x9003) as [number, number];
             info.taken = ascii(valPtr(0x9003, t, c), Math.min(c, 19));
           }
           // GPSInfo IFD → координаты
           if (ifd0Tags.has(0x8825)) {
-            const [t, c] = ifd0Tags.get(0x8825)!;
+            const [t, c] = ifd0Tags.get(0x8825) as [number, number];
             const gpsIfd = dv.getUint32(valPtr(0x8825, t, c), little);
             const tiff = p;
             let q = tiff + gpsIfd;
@@ -1648,7 +1649,7 @@ function renderDash() {
       append(skCard, bd);
     }
     const openSk = el('button', { class: 'ask-btn' }, 'Открыть раздел');
-    openSk.addEventListener('click', () => { const t = [...document.querySelectorAll('.tab')].find(b => b.textContent === 'Навыки'); if (t) t.click(); });
+    openSk.addEventListener('click', () => { const t = [...document.querySelectorAll('.tab')].find(b => b.textContent === 'Навыки'); if (t) (t as HTMLElement).click(); });
     append(skCard, openSk);
   }
   byKey.skills = skCard;
@@ -1828,7 +1829,7 @@ function renderTips() {
   const tips = S.tips || [];
   if (!tips.length) { append(c, emptySection('Раздел советов пока пуст.', 'Подскажи полезные советы с учётом возраста и привычек ребёнка.')); return; }
 
-  const cats = Array.from(new Set(tips.map((t: any) => t.category || 'Общее')));
+  const cats: string[] = Array.from(new Set(tips.map((t: any) => String(t.category || 'Общее'))));
   const nav = el('div', { class: 'kb-nav' }); append(nav, el('div', { class: 'kb-group' }, 'Разделы'));
   const btns: HTMLElement[] = [];
   const all = el('button', { class: 'active' }, 'Все советы'); btns.push(all); append(nav, all);
@@ -1856,8 +1857,8 @@ function renderRecipes() {
   if (!recipes.length) { append(c, emptySection('Рецептов пока нет.', 'Добавь простые рецепты с учётом любимых продуктов ребёнка.')); return; }
 
   // Collect all tags + categories for nav
-  const tags = Array.from(new Set(recipes.flatMap((r: any) => r.tags || [])));
-  const cats = Array.from(new Set(recipes.map((r: any) => r.category || 'Без категории')));
+  const tags: string[] = Array.from(new Set(recipes.flatMap((r: any) => r.tags || [])));
+  const cats: string[] = Array.from(new Set(recipes.map((r: any) => r.category || 'Без категории')));
 
   // Nav: category tree + tag filter
   const nav = el('div', { class: 'kb-nav' });
@@ -2040,7 +2041,7 @@ function modal(title: string, bodyFn: (b: HTMLElement) => void, onSave: () => vo
   const ac = el('div', { class: 'modal-actions' }, el('button', { class: 'cancel' }, 'Отмена'), el('button', { class: 'save' }, 'Сохранить'));
   append(md, el('h3', {}, title), bd, ac); append(ov, md); append(document.body, ov);
   bodyFn(bd);
-  if (noSave) ac.querySelector('.save')!.style.display = 'none';
+  if (noSave) (ac.querySelector('.save') as HTMLElement | null)!.style.display = 'none';
   const close = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') close();
@@ -2459,7 +2460,7 @@ function calItemEl(e: any): HTMLElement {
 }
 
 // Плашки: «Сегодня в 9:00 — Педиатр», «Завтра — Бассейн», «До 12.08 — Собрать справки»
-function renderBanners(c: HTMLElement) {
+function renderBanners(c: Element) {
   const today = startOfDay(new Date(todayRef()));
   const items: { d: Date; ev: any; when: string }[] = [];
   for (const ev of calEvents()) {
@@ -2560,7 +2561,7 @@ function attachCalPhotoZones(host: HTMLElement, ph: HTMLElement, dayPhotos: any[
   });
 }
 
-function renderCalMonth(c: HTMLElement) {
+function renderCalMonth(c: Element) {
   const first = new Date(calCursor.getFullYear(), calCursor.getMonth(), 1);
   const start = new Date(first);
   start.setDate(first.getDate() - ((first.getDay() + 6) % 7)); // неделя с понедельника
@@ -2601,7 +2602,7 @@ function renderCalMonth(c: HTMLElement) {
   }
   append(c, grid);
 }
-function renderCalWeek(c: HTMLElement) {
+function renderCalWeek(c: Element) {
   const monday = startOfDay(calCursor);
   monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
   const todayIso = iso(new Date());
@@ -2631,7 +2632,7 @@ function renderCalWeek(c: HTMLElement) {
   }
   append(c, wk);
 }
-function renderCalDay(c: HTMLElement) {
+function renderCalDay(c: Element) {
   const d = startOfDay(calCursor);
   const evs = calEvents().filter((e: any) => occursOn(e, d)).sort(sortByTime);
   const card = el('div', { class: 'card' });

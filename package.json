@@ -8,7 +8,9 @@
     "start": "npm run build:client && tsx src/server/index.ts",
     "build:client": "esbuild src/client/*.ts --outdir=dist/client/ --format=iife --bundle",
     "build": "npm run build:client && tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "typecheck:client": "tsc -p tsconfig.client.json",
+    "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
     "better-sqlite3": "^11.0.0",
