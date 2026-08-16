@@ -13,7 +13,7 @@ npm run dev          # сборка клиента + tsx watch сервера
 
 Откройте http://localhost:1911 (порт — `PORT` в `.env`, по умолчанию 1911).
 
-Требования: Node 18+, [ffmpeg](https://ffmpeg.org) в PATH (конвертация MOV→MP4 и превью; фото работают и без него).
+Требования: Node 20.x, [ffmpeg](https://ffmpeg.org) в PATH (конвертация MOV→MP4 и превью; фото работают и без него).
 
 > ⚠️ **Версия Node зафиксирована на 20.x** (см. `.nvmrc`, `engines` в `package.json`). `better-sqlite3` — нативный модуль, собранный под конкретный ABI (Node 20 → `NODE_MODULE_VERSION 115`). Если в системе несколько Node (nvm) и при установке/запуске используются разные — будет ошибка `NODE_MODULE_VERSION`. Перед `dev`/`start` запускается `scripts/check-node.cjs`, который прерывает запуск с подсказкой. При смене версии Node:
 > ```bash
@@ -26,9 +26,9 @@ npm run dev          # сборка клиента + tsx watch сервера
 
 ## Как это устроено
 
-- **LLM управляет данными**: вся бизнес-логика дневника описана в [`baby-diary-prompt.md`](baby-diary-prompt.md) (57 КБ системного промпта). Модель возвращает JSON `{"text": ..., "state": {...}, "choices": [...]}`.
-- **Сервер нормализует** (`src/server/state.ts`): парсит «время мамы» («вчера 22:00», «20.07 07:30»), чинит схема-дрейф модели (time/start, события в events вместо feeds/sleeps), дедуплицирует, мержит массивы, обрабатывает удаления через маркер `_delete:true`.
-- **Клиент** (`src/client/diary-ui.ts`) — монолитный SPA без фреймворков: рендерит state во вкладки, чат с кнопками-вариантами (мультивыбор), галерею с очередью обработки медиа, календарь с фото-подложкой, погоду.
+- **LLM управляет данными**: вся бизнес-логика дневника описана в [`baby-diary-prompt.md`](baby-diary-prompt.md) (57 КБ системного промпта). Модель возвращает JSON `{"text": ..., "state": {...}, "choices": [...]}` (включён JSON mode, температура 0.3).
+- **Сервер нормализует** (`src/server/state.ts`): парсит «время мамы» («вчера 22:00», «20.07 07:30»), чинит схема-дрейф модели, дедуплицирует, мержит массивы, обрабатывает удаления через маркер `_delete:true`; в контекст LLM уходит **проекция** state (события за 14 дней + агрегаты) — рост токенов ограничен.
+- **Клиент** — SPA без фреймворков из модулей: `diary-ui` (шаблон, чат, bootstrap), `tabs` (вкладки, быстрые записи), `calendar`, `gallery`, `core` (общие данные/хелперы). Рендер state во вкладки, чат с кнопками-вариантами, галерея с очередью обработки медиа, календарь с фото-подложкой, погода.
 
 ## Скрипты
 
@@ -37,26 +37,33 @@ npm run dev          # сборка клиента + tsx watch сервера
 | `npm run dev` | сборка клиента + сервер с hot-reload (tsx watch) |
 | `npm start` | сборка клиента + сервер |
 | `npm run build:client` | esbuild клиента в `dist/client/` |
-| `npm run typecheck` | tsc сервера (без клиента) |
-| `npm test` | node:test по чистым функциям (`test/`) |
+| `npm run typecheck` | tsc сервера |
+| `npm run typecheck:client` | tsc клиента (`tsconfig.client.json`) |
+| `npm test` | node:test: unit (парсеры state/llm) + интеграционные HTTP на `:memory:` |
+| `npm run lint` / `npm run lint:fix` | ESLint (src, test) |
+| `npm run format` | Prettier |
 
 ## API (кратко)
 
-Все `/api` и WebSocket защищены креденшелами чата (`clientId`/`clientSecret` из тела, query или заголовков `X-Client-Id`/`X-Client-Secret`); открыты только список/создание чатов и HTML-страница.
+Все `/api` и WebSocket защищены креденшелами чата (`clientId`/`clientSecret` из тела, query, заголовков `X-Client-Id`/`X-Client-Secret` **или HttpOnly-куки `bd`**, которую сервер ставит при первой аутентификации — медиа/WS ходят по ней, секреты не торчат в URL). Открыты только список/создание чатов и HTML-страница.
 
-- `POST /api/chats` — создать дневник → `{id, clientId, clientSecret}` (секреты храните в localStorage)
+- `POST /api/chats` — создать дневник (можно сразу с `title` — именем малыша) → `{id, clientId, clientSecret}`
 - `GET/POST /api/chat/:id/state` — читать/слить состояние дневника
-- `POST /chat/:id/prompt` — отправить сообщение (стриминг по WS `/chat/stream`), `POST /chat/:id/stop` — остановить, `POST /chat/:id/undo` — откатить последний ответ **вместе с изменениями state**, `POST /chat/:id/snapshot` — копия дневника (включая state и файлы фото)
-- `POST /api/chat/:id/photo` — фото base64; `POST /api/chat/:id/media` — бинарная загрузка (встаёт в очередь обработки, прогресс — WS `/media-queue`); `GET /api/photo/:chatId/:id[?th=1]` — отдача со стримом и Range (перемотка видео)
+- `POST /chat/:id/prompt` — сообщение (стриминг WS `/chat/stream`); `stop`, `undo` (откат ответа **вместе с изменениями state**), `snapshot` (копия дневника с state и фото)
+- `POST /api/chat/:id/media` — бинарная загрузка фото/видео (очередь обработки, прогресс WS `/media-queue`); `GET /api/photo/:chatId/:id[?th=1]` — стрим с Range (перемотка видео)
+- `GET /api/chat/:id/export` — zip-архив дневника (state.json без GPS + все фото/видео); в шапке — кнопка ⬇
+- `POST /api/chat/:id/invite` → `GET /api/join/:token` — одноразовое приглашение для члена семьи (🔗 в шапке)
 - `GET /api/weather?city=...` — погода Open-Meteo (без ключа, кэш 30 мин)
+- `PATCH /api/chats/:id` — переименование дневника (✎ в списке)
 
 ## Данные
 
-- SQLite: `data/babydiary.db` (схема — `src/db/schema.ts`, миграции — idempotent `ALTER TABLE` в `src/db/index.ts`)
-- Фото/видео: `data/photos/<chatId>/<id>.jpg|.mp4` + превью `<id>.th.jpg`
-- `llm_logs` (полные промпты/ответы) ротируются при старте: хранятся 30 дней
+- SQLite: `data/babydiary.db` (схема — `src/db/schema.ts`; версионирование — `PRAGMA user_version`, миграции — `src/db/index.ts`; `VACUUM` при старте)
+- Фото/видео: `data/photos/<chatId>/<id>.jpg|.mp4` + превью `<id>.th.jpg`; GPS-координаты из EXIF **не сохраняются** (приватность)
+- Авто-бэкап: раз в сутки копия БД+фото в `data/backups/<дата>/` (хранятся 7 дней)
+- `llm_logs` ротируются ежечасно (14 дней); метрики токенов/стоимости — см. `scripts/audit-db.mjs`
 
 ## Известные особенности
 
-- Приложение рассчитано на одного пользователя на localhost; креденшелы чата — единственная защита, не выставляйте порт в интернет.
-- `baby-diary-prompt.md` — промпт для модели, а не документация; правится напрямую.
+- Приложение рассчитано на одного пользователя на localhost (плюс семейный доступ по приглашению); креденшелы чата — основная защита, не выставляйте порт в интернет без HTTPS.
+- `baby-diary-prompt.md` — промпт для модели, а не документация; правится напрямую. При изменении учитывайте, что стабильный префикс промпта даёт кэш-скидки DeepSeek (×10 дешевле вход).
