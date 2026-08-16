@@ -11,6 +11,23 @@ interface ChatPreview {
 }
 
 (async () => {
+  // Семейный доступ: открытие по ссылке-приглашению /join/<token> выдаёт креды и ведёт в дневник
+  const joinMatch = location.pathname.match(/^\/join\/([a-f0-9]+)$/i);
+  if (joinMatch) {
+    try {
+      const res = await fetch('/api/join/' + joinMatch[1]);
+      if (res.ok) {
+        const data = (await res.json()) as { chatId: string; clientId: string; clientSecret: string };
+        localStorage.setItem(`pui2_clientId_${data.chatId}`, data.clientId);
+        localStorage.setItem(`pui2_secret_${data.chatId}`, data.clientSecret);
+        location.href = `/chat/${data.chatId}`;
+        return;
+      }
+      document.body.innerHTML = '<div style="font-family:system-ui;padding:40px 20px;text-align:center;color:#7a7268">Ссылка-приглашение недействительна или уже использована.<br><a href="/" style="color:#e8622a">Вернуться к дневникам</a></div>';
+      return;
+    } catch { /* падаем в список */ }
+  }
+
   const chats: ChatPreview[] = await fetch('/api/chats').then((r) => r.json());
 
   document.body.innerHTML = `
@@ -85,7 +102,13 @@ interface ChatPreview {
   }
 
   document.getElementById('new-chat')!.onclick = async () => {
-    const res = await fetch('/api/chats', { method: 'POST' });
+    // Быстрый старт: имя малыша = название дневника (1 вопрос вместо пустого «Baby Diary»)
+    const name = prompt('Как зовут малыша? (можно пропустить)', '');
+    const res = await fetch('/api/chats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: name ? name.trim() : '' }),
+    });
     const data = (await res.json()) as { id: string; clientId: string; clientSecret: string };
     localStorage.setItem(`pui2_clientId_${data.id}`, data.clientId);
     localStorage.setItem(`pui2_secret_${data.id}`, data.clientSecret);

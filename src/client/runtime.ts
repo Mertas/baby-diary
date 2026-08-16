@@ -45,4 +45,9 @@ function connect(): void {
   if (ws && ws.readyState === WebSocket.OPEN) { ws.send(JSON.stringify({ type: 'subscribe', path })); }
 };
 
+// PWA: service worker (кэш оболочки приложения — офлайн-открытие), регистрируем сразу
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => { /* офлайн-фича опциональна */ });
+}
+
 connect();

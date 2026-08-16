@@ -4,7 +4,7 @@ import { DB_PATH } from '../server/config.js';
 
 /** Текущая версия схемы БД (PRAGMA user_version). Растёт при структурных изменениях;
  *  миграции ниже выполняются последовательно от старой версии к новой. */
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 /** Упорядоченные миграции: [версия, SQL]. Выполняются один раз, затем user_version = версия. */
 const MIGRATIONS: Array<[number, string]> = [
@@ -18,6 +18,8 @@ const MIGRATIONS: Array<[number, string]> = [
   `],
   // v2: снимок state до ответа — для undo с откатом данных
   [2, `ALTER TABLE llm_messages ADD COLUMN prev_state TEXT;`],
+  // v3: приглашения для семейного доступа (таблица создаётся в SCHEMA; версия — для порядка)
+  [3, `CREATE TABLE IF NOT EXISTS invites (token TEXT PRIMARY KEY, chat_id TEXT NOT NULL, created_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000), expires_at INTEGER NOT NULL, FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE);`],
 ];
 
 let _db: Database.Database | null = null;

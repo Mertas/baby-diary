@@ -49,7 +49,7 @@ function sendClientFile(res: express.Response, filename: string) {
 }
 
 function indexHtml() {
-  return `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Baby Diary</title></head><body><script src="/api/chat-list.js"></script></body></html>`;
+  return `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"><meta name="theme-color" content="#e8622a"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon.svg"><title>Baby Diary</title></head><body><script src="/api/chat-list.js"></script></body></html>`;
 }
 
 function appHtml(chatId: string) {
@@ -65,7 +65,7 @@ function appHtml(chatId: string) {
   const chat = db.prepare('SELECT thinking FROM chats WHERE id = ?').get(chatId) as { thinking: number } | undefined;
   const thinking = chat?.thinking === 1;
 
-  return `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Baby Diary</title></head><body><script>window.__CHAT_ID__='${chatId}';</script><script>window.__CHAT_THINKING__=${thinking};</script><script>window.__INITIAL_MESSAGES__=${JSON.stringify(messages).replace(/<\//g, '<\\/')};</script><script src="/api/runtime.js"></script><script src="/api/bridge.js"></script><script src="/api/diary-ui.js"></script></body></html>`;
+  return `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"><meta name="theme-color" content="#e8622a"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon.svg"><title>Baby Diary</title></head><body><script>window.__CHAT_ID__='${chatId}';</script><script>window.__CHAT_THINKING__=${thinking};</script><script>window.__INITIAL_MESSAGES__=${JSON.stringify(messages).replace(/<\//g, '<\\/')};</script><script src="/api/runtime.js"></script><script src="/api/bridge.js"></script><script src="/api/diary-ui.js"></script></body></html>`;
 }
 
 app.get('/', (_req, res) => { res.send(indexHtml()); });
@@ -95,11 +95,14 @@ app.get('/api/chats', (_req, res) => {
   })));
 });
 
-app.post('/api/chats', (_req, res) => {
+app.post('/api/chats', (req, res) => {
   const db = getDb();
+  // Быстрый старт: имя малыша сразу становится названием дневника (иначе в списке одни «Baby Diary»)
+  const title = req.body && typeof (req.body as Record<string, unknown>).title === 'string'
+    ? ((req.body as Record<string, unknown>).title as string).trim().slice(0, 80) : '';
   const chatId = uuid(), clientId = uuid(), secret = uuid();
   db.transaction(() => {
-    db.prepare('INSERT INTO chats (id, title) VALUES (?, ?)').run(chatId, 'Baby Diary');
+    db.prepare('INSERT INTO chats (id, title) VALUES (?, ?)').run(chatId, title || 'Baby Diary');
     db.prepare('INSERT INTO clients (client_id, secret, chat_id) VALUES (?, ?, ?)').run(clientId, secret, chatId);
   })();
   res.json({ id: chatId, clientId, clientSecret: secret });
@@ -211,6 +214,31 @@ app.patch('/api/chats/:id', (req, res) => {
   if (!t) return res.status(400).json({ error: 'Title required' });
   getDb().prepare('UPDATE chats SET title = ? WHERE id = ?').run(t, chatId);
   res.json({ status: 'ok', title: t });
+});
+
+// ─── Семейный доступ: одноразовое приглашение выдаёт креды нового клиента ───
+app.post('/api/chat/:id/invite', requireClient, (req, res) => {
+  const chatId = req.params.id;
+  const db = getDb();
+  // чистим протухшие
+  db.prepare('DELETE FROM invites WHERE expires_at < ?').run(Date.now());
+  const token = uuid().replace(/-/g, '').slice(0, 24);
+  db.prepare('INSERT INTO invites (token, chat_id, expires_at) VALUES (?, ?, ?)').run(token, chatId, Date.now() + 7 * 86400000);
+  res.json({ url: '/join/' + token });
+});
+
+// Одноразовый join: выдаёт креды нового клиента для чата приглашения
+app.get('/api/join/:token', (req, res) => {
+  const db = getDb();
+  const row = db.prepare('SELECT chat_id, expires_at FROM invites WHERE token = ?').get(req.params.token) as { chat_id: string; expires_at: number } | undefined;
+  if (!row) return res.status(404).json({ error: 'Invite not found' });
+  if (row.expires_at < Date.now()) { db.prepare('DELETE FROM invites WHERE token = ?').run(req.params.token); return res.status(410).json({ error: 'Invite expired' }); }
+  const newClientId = uuid(), newSecret = uuid();
+  db.transaction(() => {
+    db.prepare('INSERT INTO clients (client_id, secret, chat_id) VALUES (?, ?, ?)').run(newClientId, newSecret, row.chat_id);
+    db.prepare('DELETE FROM invites WHERE token = ?').run(req.params.token); // одноразовый
+  })();
+  res.json({ chatId: row.chat_id, clientId: newClientId, clientSecret: newSecret });
 });
 
 // ─── API: Baby state (persistent app data) ──────────────────
@@ -432,6 +460,48 @@ app.get('/api/runtime.js', (_req, res) => sendClientFile(res, 'runtime.js'));
 app.get('/api/bridge.js', (_req, res) => sendClientFile(res, 'bridge.js'));
 app.get('/api/diary-ui.js', (_req, res) => sendClientFile(res, 'diary-ui.js'));
 app.get('/api/chat-list.js', (_req, res) => sendClientFile(res, 'chat-list.js'));
+
+// ─── PWA: manifest + service worker ───
+app.get('/manifest.webmanifest', (_req, res) => {
+  res.type('application/manifest+json').send(JSON.stringify({
+    name: 'Baby Diary',
+    short_name: 'BabyDiary',
+    description: 'Дневник малыша с LLM-помощником',
+    start_url: '/',
+    display: 'standalone',
+    background_color: '#f8f5f0',
+    theme_color: '#e8622a',
+    icons: [{ src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
+  }));
+});
+app.get('/icon.svg', (_req, res) => {
+  res.type('image/svg+xml').send(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><rect width="192" height="192" rx="36" fill="#e8622a"/><text x="96" y="124" font-size="96" text-anchor="middle" dominant-baseline="middle">👶</text></svg>`);
+});
+app.get('/sw.js', (_req, res) => {
+  res.type('application/javascript').send(`
+const CACHE = 'babydiary-v1';
+const SHELL = ['/', '/manifest.webmanifest', '/icon.svg', '/api/runtime.js', '/api/bridge.js', '/api/diary-ui.js', '/api/chat-list.js'];
+self.addEventListener('install', (e) => {
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+});
+self.addEventListener('activate', (e) => {
+  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+});
+self.addEventListener('fetch', (e) => {
+  const url = new URL(e.request.url);
+  // API — только сеть (данные живые; офлайн-чтение state решает клиент своим кэшем)
+  if (url.pathname.startsWith('/api/')) return;
+  if (e.request.mode === 'navigate') {
+    e.respondWith(fetch(e.request).catch(() => caches.match('/')));
+    return;
+  }
+  e.respondWith(caches.match(e.request).then((hit) => hit || fetch(e.request).then((r) => {
+    if (r.ok && url.origin === location.origin) { const clone = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, clone)); }
+    return r;
+  })));
+});
+`);
+});
 
 server.listen(PORT, () => {
   console.log(`BabyDiary running at http://localhost:${PORT}`);

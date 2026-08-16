@@ -436,7 +436,7 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 </style>
 <div id="app">
   <div class="brand">
-    <div class="mark">Baby Diary <button id="exp" class="exp-btn" title="Скачать архив дневника (state.json + фото)">⬇</button></div>
+    <div class="mark">Baby Diary <button id="inv" class="exp-btn" title="Пригласить члена семьи (папу/бабушку)">🔗</button><button id="exp" class="exp-btn" title="Скачать архив дневника (state.json + фото)">⬇</button></div>
     <div class="brand-row">
       <div class="brand-info">
         <div class="name-row"><span class="name" id="nm">—</span><span class="meta" id="mt"></span></div>
@@ -570,8 +570,22 @@ export function askChat(prompt: string) {
   }
 }
 
+const STATE_CACHE_KEY = () => 'bd_state_' + CHAT_ID;
+function cacheState(): void {
+  try { localStorage.setItem(STATE_CACHE_KEY(), JSON.stringify(S)); } catch { /* кэш не критичен */ }
+}
+
 export function loadState(): Promise<void> {
-  return fetch('/api/chat/' + CHAT_ID + '/state?clientId=' + encodeURIComponent(CID) + '&clientSecret=' + encodeURIComponent(SEC)).then(r => r.json()).then(st => { S = st || {}; renderAll(); }).catch(() => {});
+  return fetch('/api/chat/' + CHAT_ID + '/state?clientId=' + encodeURIComponent(CID) + '&clientSecret=' + encodeURIComponent(SEC))
+    .then(r => r.json())
+    .then(st => { S = st || {}; cacheState(); renderAll(); })
+    .catch(() => {
+      // Офлайн/сервер недоступен: показываем последний известный срез (офлайн-чтение)
+      try {
+        const cached = localStorage.getItem(STATE_CACHE_KEY());
+        if (cached) { S = JSON.parse(cached) || {}; renderAll(); }
+      } catch { /* нет кэша */ }
+    });
 }
 export function saveState(partial: any): Promise<any> {
   return fetch('/api/chat/' + CHAT_ID + '/state', {
@@ -587,11 +601,14 @@ export function saveState(partial: any): Promise<any> {
       throw new Error('HTTP ' + r.status);
     }
     return r.json();
-  }).then(st => { S = st || {}; renderAll(); return st; }).catch(() => {});
+  }).then(st => { S = st || {}; cacheState(); renderAll(); return st; }).catch(() => {});
 }
 
 let lastTabsKey = '';
 function renderAll() {
+  // Сохранить скролл активной вкладки — render пересоздаёт DOM, иначе «прыжок наверх» на каждый чих
+  const activeEl = $('.content.active');
+  const savedScroll = activeEl ? activeEl.scrollTop : 0;
   // Динамические вкладки: пересоздаём кнопки панели, если набор изменился (добавлена/удалена вкладка)
   const tabsKey = JSON.stringify((S.tabs || []).map((t: any) => t.id));
   if (tabsKey !== lastTabsKey) { lastTabsKey = tabsKey; setupTabs(); }
@@ -654,6 +671,7 @@ function renderAll() {
   renderBudget();
   renderDynTabs();
   renderCalendar();
+  if (activeEl) activeEl.scrollTop = savedScroll;
 }
 
 // Reusable todo list with checkboxes. todos: [{text, done, section}]
@@ -862,7 +880,27 @@ setupTabs();
 setupActions();
 setupAvatar();
 setupChat();
-loadState();
+loadState().then(() => checkNotifications());
+// Приглашение члена семьи: одноразовая ссылка, по которой второй человек получит доступ к дневнику
+const invBtn = $('#inv');
+if (invBtn) invBtn.addEventListener('click', () => {
+  fetch('/api/chat/' + CHAT_ID + '/invite', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clientId: CID, clientSecret: SEC }),
+  })
+    .then((r) => r.json())
+    .then((d) => {
+      if (!d || !d.url) throw new Error('no url');
+      const url = location.origin + d.url;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => alert('Ссылка-приглашение скопирована:\n' + url + '\nОткройте её на другом устройстве — второй человек получит свой доступ к дневнику.')).catch(() => prompt('Скопируйте ссылку-приглашение:', url));
+      } else {
+        prompt('Скопируйте ссылку-приглашение (откройте на другом устройстве):', url);
+      }
+    })
+    .catch((e) => { console.error('invite failed:', e); alert('Не удалось создать приглашение'); });
+});
 // Скачать архив дневника (state.json + фото/видео одним zip)
 const expBtn = $('#exp');
 if (expBtn) expBtn.addEventListener('click', () => {
@@ -883,8 +921,63 @@ fetch('/api/chat/' + CHAT_ID + '/media-queue?clientId=' + CID + '&clientSecret='
   .then((d) => { if (d && Array.isArray(d.items)) { setMediaQueue(d.items); renderMediaPanel(); } })
   .catch(() => { /* ок */ });
 window.__runtime_subscribe('/chat/state', (raw: string) => {
-  try { const d = JSON.parse(raw); if (d.type === 'state' && d.state) { S = d.state; renderAll(); } } catch { /* ignore */ }
+  try { const d = JSON.parse(raw); if (d.type === 'state' && d.state) { S = d.state; renderAll(); checkNotifications(); } } catch { /* ignore */ }
 });
+
+// ─── Локальные уведомления: reminders/calendar → Notification API (пока приложение открыто) ───
+const NOTIF_KEY = 'bd_notified';
+let notifShown: Set<string> = new Set(JSON.parse(localStorage.getItem(NOTIF_KEY) || '[]'));
+function checkNotifications(): void {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') { Notification.requestPermission().catch(() => {}); return; }
+  if (Notification.permission !== 'granted') return;
+  const now = new Date();
+  const dayKey = (d: Date) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const today = dayKey(now), tomorrow = dayKey(new Date(now.getTime() + 86400000));
+  const items: { title: string; body: string }[] = [];
+  // Календарь: важные события сегодня/завтра (с учётом повторения — occursOn есть в calendar.ts, но здесь проще по датам)
+  for (const ev of (S.calendar || [])) {
+    if (!ev || ev.done) continue;
+    const d = ev.date ? String(ev.date).slice(0, 10) : '';
+    const match = d === today || d === tomorrow;
+    if (!match && ev.recurring) {
+      const dd = new Date(d + 'T00:00:00');
+      if (!isNaN(dd.getTime())) {
+        const diff = Math.round((new Date(today + 'T00:00:00').getTime() - dd.getTime()) / 86400000);
+        const hits = (ev.recurring === 'daily' && diff >= 0) ||
+          (ev.recurring === 'weekly' && diff >= 0 && diff % 7 === 0) ||
+          (ev.recurring === 'monthly' && dd.getDate() === now.getDate()) ||
+          (ev.recurring === 'yearly' && dd.getMonth() === now.getMonth() && dd.getDate() === now.getDate());
+        if (hits && !(ev.until && d && String(ev.until) < today)) items.push({ title: '📅 ' + ev.title, body: (ev.time ? 'Сегодня в ' + ev.time : 'Сегодня') + (ev.note ? ' · ' + ev.note : '') });
+      }
+    } else if (match) {
+      items.push({ title: (d === today ? 'Сегодня: ' : 'Завтра: ') + ev.title, body: (ev.time ? 'В ' + ev.time : '') + (ev.note ? ' · ' + ev.note : '') });
+    }
+  }
+  // Напоминания LLM: дата сегодня/завтра
+  for (const r of (S.reminders || [])) {
+    if (!r || r.done) continue;
+    const d = r.date ? String(r.date).slice(0, 10) : '';
+    if (d === today || d === tomorrow) items.push({ title: (d === today ? 'Сегодня: ' : 'Завтра: ') + (r.text || 'Напоминание'), body: '' });
+  }
+  let shown = 0;
+  for (const it of items) {
+    if (shown >= 3) break;
+    const key = it.title + '|' + it.body;
+    if (notifShown.has(key)) continue;
+    notifShown.add(key);
+    shown++;
+    try {
+      const n = new Notification(it.title, { body: it.body, tag: 'bd-' + key.slice(0, 40) });
+      n.onclick = () => { window.focus(); n.close(); };
+    } catch { /* ок */ }
+  }
+  if (shown > 0) {
+    // Держим только последние ~50 ключей
+    const arr = [...notifShown].slice(-50);
+    localStorage.setItem(NOTIF_KEY, JSON.stringify(arr));
+  }
+}
 window.__runtime_subscribe('/media-queue', (raw: string) => {
   try {
     const d = JSON.parse(raw);

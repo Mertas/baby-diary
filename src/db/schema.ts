@@ -47,6 +47,15 @@ CREATE TABLE IF NOT EXISTS baby_state (
   updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
   FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE
 );
+
+-- Приглашения для семейного доступа: одноразовые токены, выдающие креды нового клиента
+CREATE TABLE IF NOT EXISTS invites (
+  token TEXT PRIMARY KEY,
+  chat_id TEXT NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
+  expires_at INTEGER NOT NULL,
+  FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE
+);
 `;
 
 export interface Chat {
