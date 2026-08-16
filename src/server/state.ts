@@ -1,6 +1,6 @@
 import { getDb } from '../db/index.js';
 
-const ARRAY_KEYS = new Set(['feeds', 'sleeps', 'events', 'tips', 'recipes', 'spurts', 'todos', 'shopping', 'reminders', 'calendar', 'tabs', 'family', 'budget', 'llmNotes', 'stock']);
+const ARRAY_KEYS = new Set(['feeds', 'sleeps', 'events', 'tips', 'recipes', 'spurts', 'todos', 'shopping', 'reminders', 'calendar', 'tabs', 'family', 'budget', 'llmNotes', 'stock', 'photos']);
 
 export function getState(chatId: string): Record<string, unknown> {
   const db = getDb();
@@ -104,6 +104,18 @@ function sanitizeCalendar(items: unknown): unknown[] {
     if (typeof o.recurring === 'string') {
       o.recurring = RECURRING_MAP[o.recurring.trim().toLowerCase()] || null;
     }
+    // until: дата окончания повторения («по вторникам до конца августа» → until 2026-08-25)
+    if (o.until != null) {
+      if (typeof o.until === 'string') {
+        const u = o.until.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        if (u) o.until = `${u[1]}-${u[2].padStart(2, '0')}-${u[3].padStart(2, '0')}`;
+        else delete o.until;
+      } else {
+        delete o.until;
+      }
+      if (!o.recurring) delete o.until; // until без повторения бессмыслен
+      if (o.until && o.date && String(o.until) < String(o.date)) delete o.until; // раньше начала — мусор
+    }
     if (o.important != null && typeof o.important !== 'boolean') {
       o.important = /^(да|true|1|важно|обязательно)$/i.test(String(o.important));
     }
@@ -166,6 +178,19 @@ export function sanitizeStateEvents(state: Record<string, unknown>, dayBase?: nu
   const out: Record<string, unknown> = { ...state };
   const now = Date.now();
   if ('calendar' in out) out.calendar = sanitizeCalendar(out.calendar);
+  // blurb — строка (милое описание); объект/мусор выбрасываем
+  if ('blurb' in out && typeof out.blurb !== 'string') delete out.blurb;
+  // city — строка (город для виджета погоды)
+  if ('city' in out && typeof out.city !== 'string') delete out.city;
+  // Схема-дрейф: details.feeding модель иногда пишет объектом {type, started, foods} вместо строки
+  if (out.details && typeof out.details === 'object') {
+    const d = out.details as Record<string, unknown>;
+    if (d.feeding && typeof d.feeding === 'object') {
+      const f = d.feeding as Record<string, unknown>;
+      if (typeof f.type === 'string') d.feeding = f.type;
+      else delete d.feeding;
+    }
+  }
   // Схема-дрейф: модель иногда пишет ВСЁ в единый `events` с type 'feed'/'sleep'
   // (особенно после retry-промпта без примеров). Разруливаем по массивам ДО нормализации,
   // иначе кормления/сны не попадут в статистику, а end останется строкой.
@@ -217,6 +242,10 @@ export function sanitizeStateEvents(state: Record<string, unknown>, dayBase?: nu
     const clean: unknown[] = [];
     for (const e of arr) {
       let o = e && typeof e === 'object' ? { ...(e as Record<string, unknown>) } : {};
+      // Маркер удаления — как есть, без нормализации и дедупа: иначе он схлопнется
+      // с исправленной записью (eventKey не содержит note: ev|ts|title) и удаление
+      // сожрёт новую версию события.
+      if (o._delete) { clean.push(o); continue; }
       // Модель пишет время то в `time`, то в `start` — принимаем оба
       let ts = typeof o.timestamp === 'number' && !isNaN(o.timestamp) ? o.timestamp : NaN;
       if (isNaN(ts) || Math.abs(ts - now) > 400 * 86400000) {
@@ -325,14 +354,18 @@ export function mergeState(current: Record<string, unknown>, incoming: Record<st
       const markers = iv.filter((x: any) => x && typeof x === 'object' && x._delete);
       const delById = new Set(markers.filter((x: any) => x.id).map((x: any) => String(x.id)));
       const delByName = new Set(markers.filter((x: any) => x.name && !x.id).map((x: any) => String(x.name)));
-      const delByKey = new Set(markers.filter((x: any) => !x.id && !x.name).map((x: any) => `${x.title}|${x.date}|${x.time || ''}|${x.note || ''}`));
+      // timestamp в ключе: события (feeds/sleeps/events) не имеют id/date — исправление/удаление
+      // идёт по (title|note|timestamp). Calendar/легаси-записи timestamp не имеют — ключ совпадает.
+      // delByKeyNoTs: страховка, если модель не скопировала timestamp — матчим по title|date|time|note.
+      const delByKey = new Set(markers.filter((x: any) => !x.id && !x.name).map((x: any) => `${x.title}|${x.date}|${x.time || ''}|${x.note || ''}|${x.timestamp ?? ''}`));
+      const delByKeyNoTs = new Set(markers.filter((x: any) => !x.id && !x.name && x.timestamp == null).map((x: any) => `${x.title}|${x.date}|${x.time || ''}|${x.note || ''}`));
       let mergedBase = base;
-      if (delById.size || delByName.size || delByKey.size) {
+      if (delById.size || delByName.size || delByKey.size || delByKeyNoTs.size) {
         mergedBase = base.filter((x: any) => {
           if (x && typeof x === 'object') {
             if (x.id && delById.has(String(x.id))) return false;
             if (delByName.has(String(x.name || ''))) return false;
-            if (!x.id && delByKey.has(`${x.title}|${x.date}|${x.time || ''}|${x.note || ''}`)) return false;
+            if (!x.id && (delByKey.has(`${x.title}|${x.date}|${x.time || ''}|${x.note || ''}|${x.timestamp ?? ''}`) || delByKeyNoTs.has(`${x.title}|${x.date}|${x.time || ''}|${x.note || ''}`))) return false;
           }
           return true;
         });

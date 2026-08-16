@@ -207,13 +207,15 @@ async function fillEmptySections(chatId: string, merged: Record<string, unknown>
   const cal = Array.isArray(s.calendar) ? s.calendar : [];
   const hasMed = cal.some((c: any) => /[💉🩺⚕️🎂]/.test(String(c.title || '')));
   const needCal = !hasMed && !isNaN(ageDays) && ageDays <= 730;
-  if (!needSkills && !needSpurts && !needCal) return;
-  console.log('[fill]', chatId.slice(0, 8), 'attempt', attempts + 1, 'skills:', needSkills, 'spurts:', needSpurts, 'cal:', needCal);
+  const needBlurb = !s.blurb && !!s.name;
+  if (!needSkills && !needSpurts && !needCal && !needBlurb) return;
+  console.log('[fill]', chatId.slice(0, 8), 'attempt', attempts + 1, 'skills:', needSkills, 'spurts:', needSpurts, 'cal:', needCal, 'blurb:', needBlurb);
 
   const asks: string[] = [];
   if (needSkills) asks.push('skills — навыки по возрасту ребёнка (8–15 шт: что умеет/осваивает/должно появиться, статусы done/current/upcoming, у каждого normal «X–Y мес»)');
   if (needSpurts) asks.push('spurts — актуальный скачок роста по возрасту (неделя + описание)');
   if (needCal) asks.push('calendar — все ближайшие медицинские вехи по нацкалендарю прививок на 3 месяца вперёд от birthDate, с эмодзи в title (💉/🩺/⚕️)');
+  if (needBlurb) asks.push('blurb — милое описание ребёнка ОДНИМ предложением (тёплое, образное, с лёгким юмором, без перечисления фактов и цифр)');
   const messages = buildMessageHistory(chatId);
   messages.push({
     role: 'user',

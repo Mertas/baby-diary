@@ -6,16 +6,20 @@ import { PORT } from './config.js';
 import { setupWebSocket, broadcast, setReplayHandler } from './ws.js';
 import { handlePrompt, stopGeneration, isProcessing } from './llm.js';
 import { getState, saveState, mergeState, sanitizeStateEvents } from './state.js';
+import { getWeather } from './weather.js';
+import { savePhoto, readMedia, prunePhotos, ingestMedia, queueFor, trimQueue, chatPhotoDir, restoreMediaQueue } from './photos.js';
 import { v4 as uuid } from 'uuid';
 import type { LlmMessage, ChatPreview } from '../db/schema.js';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, unlinkSync } from 'fs';
+import { join } from 'path';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export const app = express();
-app.use(express.json());
+// Лимит 12 МБ: фотографии идут base64 в JSON (express.json по умолчанию режет на 100kb → 413)
+app.use(express.json({ limit: '12mb' }));
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
@@ -184,23 +188,203 @@ app.get('/api/chat/:id/state', (req, res) => {
   res.json(getState(req.params.id));
 });
 
+// Погода (Open-Meteo, без ключа): ?city=Москва — геокодинг + текущая погода + 8 дней
+app.get('/api/weather', async (req, res) => {
+  const city = String(req.query.city || '').trim();
+  if (!city) return res.status(400).json({ error: 'city required' });
+  try {
+    res.json(await getWeather(city));
+  } catch (e) {
+    res.status(404).json({ error: String((e as Error).message || e) });
+  }
+});
+
 app.post('/api/chat/:id/state', (req, res) => {
   const { clientId, clientSecret, state } = req.body;
   const chatId = req.params.id;
   const db = getDb();
   if (!db.prepare('SELECT * FROM clients WHERE client_id = ? AND secret = ? AND chat_id = ?').get(clientId, clientSecret, chatId)) return res.status(401).json({ error: 'Invalid credentials' });
   if (!state || typeof state !== 'object' || Array.isArray(state)) return res.status(400).json({ error: 'State must be an object' });
-  const merged = mergeState(getState(chatId), sanitizeStateEvents(state));
+  const prev = getState(chatId);
+  const merged = mergeState(prev, sanitizeStateEvents(state));
   saveState(chatId, merged);
+  // Чистка файлов фото, удалённых из state (маркеры _delete)
+  const kept = new Set<string>((Array.isArray(merged.photos) ? merged.photos : []).map((p: any) => String(p.id || '')));
+  prunePhotos(chatId, kept);
+  // Разослать обновление по WS — иначе другие вкладки не узнают об изменениях (галерея, аватарка)
+  broadcast(chatId, '/chat/state', JSON.stringify({ path: '/chat/state', type: 'state', state: merged }));
   res.json(merged);
 });
+
+// Загрузка фотографии (base64 JPEG, уже обработанной на клиенте: ресайз + EXIF-ориентация)
+app.post('/api/chat/:id/photo', (req, res) => {
+  const { clientId, clientSecret, data, desc } = req.body;
+  const chatId = req.params.id;
+  const db = getDb();
+  if (!db.prepare('SELECT * FROM clients WHERE client_id = ? AND secret = ? AND chat_id = ?').get(clientId, clientSecret, chatId)) return res.status(401).json({ error: 'Invalid credentials' });
+  if (typeof data !== 'string' || !data) return res.status(400).json({ error: 'data required' });
+  const id = uuid().slice(0, 8);
+  try {
+    savePhoto(chatId, id, data);
+  } catch (e) {
+    return res.status(400).json({ error: String((e as Error).message || e) });
+  }
+  // EXIF-метаданные (дата съёмки, GPS) — валидируем и храним в записи фото
+  let exif: unknown = undefined;
+  if (req.body.exif && typeof req.body.exif === 'object') {
+    const e = req.body.exif as Record<string, unknown>;
+    const cleaned: Record<string, unknown> = {};
+    if (typeof e.taken === 'string' && /^\d{4}:\d{2}:\d{2} \d{2}:\d{2}/.test(e.taken)) cleaned.taken = e.taken.slice(0, 19);
+    if (e.gps && typeof e.gps === 'object') {
+      const g = e.gps as Record<string, unknown>;
+      if (typeof g.lat === 'number' && typeof g.lon === 'number' && isFinite(g.lat) && isFinite(g.lon) &&
+          Math.abs(g.lat) <= 90 && Math.abs(g.lon) <= 180) cleaned.gps = { lat: g.lat, lon: g.lon };
+    }
+    if (Object.keys(cleaned).length) exif = cleaned;
+  }
+  const photo = { id, desc: typeof desc === 'string' && desc.trim() ? desc.trim().slice(0, 500) : '', ts: Date.now(), exif };
+  const merged = mergeState(getState(chatId), { photos: [photo] });
+  saveState(chatId, merged);
+  // Другие вкладки тоже должны увидеть новое фото
+  broadcast(chatId, '/chat/state', JSON.stringify({ path: '/chat/state', type: 'state', state: merged }));
+  res.json(photo);
+});
+
+// Отдача медиа (фото/видео) и превью: /api/photo/<chatId>/<id>[?th=1]
+app.get('/api/photo/:chatId/:id', (req, res) => {
+  const m = readMedia(req.params.chatId, req.params.id, req.query.th === '1');
+  if (!m) return res.status(404).json({ error: 'not found' });
+  res.set('Content-Type', m.mime);
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.send(m.buf);
+});
+
+// Загрузка медиа бинарём: файл сразу ставится в ОЧЕРЕДЬ обработки (ответ мгновенный),
+// конвертация/сохранение идут в фоне последовательно; прогресс — WS '/media-queue'.
+app.post('/api/chat/:id/media', (req, res) => {
+  const chatId = req.params.id;
+  const clientId = String(req.query.clientId || '');
+  const clientSecret = String(req.query.clientSecret || '');
+  const db = getDb();
+  if (!db.prepare('SELECT * FROM clients WHERE client_id = ? AND secret = ? AND chat_id = ?').get(clientId, clientSecret, chatId)) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+  const kind: 'photo' | 'video' = String(req.headers['x-kind'] || 'photo') === 'video' ? 'video' : 'photo';
+  let fileName = String(req.headers['x-file-name'] || (kind === 'video' ? 'video.mp4' : 'photo.jpg'));
+  try { fileName = decodeURIComponent(fileName); } catch { /* ок */ }
+  let desc = '';
+  try { desc = decodeURIComponent(String(req.headers['x-desc'] || '')); } catch { /* ок */ }
+  let exif: any = null;
+  try {
+    const raw = String(req.headers['x-exif'] || '');
+    if (raw) exif = JSON.parse(decodeURIComponent(raw));
+  } catch { /* ок */ }
+  const MAX = 512 * 1024 * 1024;
+  const chunks: Buffer[] = [];
+  let size = 0;
+  req.on('data', (c: Buffer) => {
+    size += c.length;
+    if (size > MAX) { req.destroy(); return; }
+    chunks.push(c);
+  });
+  req.on('error', () => { if (!res.headersSent) res.status(400).json({ error: 'body too large' }); });
+  req.on('end', () => {
+    try {
+      if (!chunks.length) return res.status(400).json({ error: 'empty body' });
+      const id = uuid().slice(0, 8);
+      const dir = chatPhotoDir(chatId);
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, '.tmp-' + id + '.bin'), Buffer.concat(chunks));
+      writeFileSync(join(dir, '.tmp-' + id + '.meta.json'), JSON.stringify({ fileName, kind, desc, exif }));
+      queueFor(chatId).push({ id, fileName, kind, status: 'queued', pct: 0 });
+      broadcastQueue(chatId);
+      res.json({ id, queued: true });
+      void processMediaQueue(chatId);
+    } catch (e) {
+      console.error('media enqueue failed:', e);
+      if (!res.headersSent) res.status(400).json({ error: String((e as Error).message || e) });
+    }
+  });
+});
+
+// Текущая очередь обработки (для восстановления UI после перезагрузки страницы)
+app.get('/api/chat/:id/media-queue', (req, res) => {
+  const chatId = req.params.id;
+  const db = getDb();
+  if (!db.prepare('SELECT * FROM clients WHERE client_id = ? AND secret = ? AND chat_id = ?').get(String(req.query.clientId || ''), String(req.query.clientSecret || ''), chatId)) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+  res.json({ items: queueFor(chatId) });
+});
+
+function broadcastQueue(chatId: string): void {
+  broadcast(chatId, '/media-queue', JSON.stringify({ path: '/media-queue', type: 'queue', items: queueFor(chatId) }));
+}
+
+const processingChats = new Set<string>();
+
+/** Последовательная обработка очереди чата: ffmpeg-конвертация/сохранение → запись в state. */
+async function processMediaQueue(chatId: string): Promise<void> {
+  if (processingChats.has(chatId)) return;
+  processingChats.add(chatId);
+  try {
+    const q = queueFor(chatId);
+    const dir = chatPhotoDir(chatId);
+    for (const item of q) {
+      if (item.status === 'done' || item.status === 'error') continue;
+      item.status = 'processing';
+      item.pct = 0;
+      broadcastQueue(chatId);
+      const binPath = join(dir, '.tmp-' + item.id + '.bin');
+      const metaPath = join(dir, '.tmp-' + item.id + '.meta.json');
+      try {
+        let metaJson: any = {};
+        try { metaJson = JSON.parse(readFileSync(metaPath, 'utf8')); } catch { /* ок */ }
+        const meta = await ingestMedia(chatId, item.id, readFileSync(binPath), item.fileName, item.kind, (pct) => {
+          item.pct = pct;
+          broadcastQueue(chatId);
+        });
+        const rec: Record<string, unknown> = { id: item.id, desc: String(metaJson.desc || '').trim().slice(0, 500), ts: Date.now() };
+        if (item.kind === 'video') {
+          rec.type = 'video';
+          if (meta.duration) rec.duration = meta.duration;
+        }
+        const exif: Record<string, unknown> = {};
+        if (metaJson.exif && typeof metaJson.exif === 'object') {
+          if (typeof metaJson.exif.taken === 'string' && /^\d{4}:\d{2}:\d{2} \d{2}:\d{2}/.test(metaJson.exif.taken)) exif.taken = metaJson.exif.taken.slice(0, 19);
+          const g = metaJson.exif.gps;
+          if (g && typeof g.lat === 'number' && typeof g.lon === 'number' && isFinite(g.lat) && isFinite(g.lon) && Math.abs(g.lat) <= 90 && Math.abs(g.lon) <= 180) exif.gps = { lat: g.lat, lon: g.lon };
+        }
+        if (item.kind === 'video' && meta.taken) exif.taken = meta.taken;
+        if (Object.keys(exif).length) rec.exif = exif;
+        const merged = mergeState(getState(chatId), { photos: [rec] });
+        saveState(chatId, merged);
+        broadcast(chatId, '/chat/state', JSON.stringify({ path: '/chat/state', type: 'state', state: merged }));
+        item.status = 'done';
+        item.pct = 100;
+        try { unlinkSync(binPath); unlinkSync(metaPath); } catch { /* ок */ }
+      } catch (e) {
+        console.error('media process failed:', item.id, e);
+        item.status = 'error';
+      }
+      broadcastQueue(chatId);
+    }
+    trimQueue(chatId);
+  } finally {
+    processingChats.delete(chatId);
+  }
+}
 
 app.get('/api/runtime.js', (_req, res) => sendClientFile(res, 'runtime.js'));
 app.get('/api/bridge.js', (_req, res) => sendClientFile(res, 'bridge.js'));
 app.get('/api/diary-ui.js', (_req, res) => sendClientFile(res, 'diary-ui.js'));
 app.get('/api/chat-list.js', (_req, res) => sendClientFile(res, 'chat-list.js'));
 
-server.listen(PORT, () => { console.log(`BabyDiary running at http://localhost:${PORT}`); });
+server.listen(PORT, () => {
+  console.log(`BabyDiary running at http://localhost:${PORT}`);
+  // Догнать незавершённые конвертации после рестарта (очередь восстанавливается из .tmp-файлов)
+  for (const chatId of restoreMediaQueue()) void processMediaQueue(chatId);
+});
 process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);
 
 function shutdown() {

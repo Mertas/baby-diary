@@ -19,10 +19,13 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 
 .brand { text-align: center; padding: 22px 16px 6px; flex-shrink: 0; }
 .brand .mark { font-family: var(--serif); font-size: 11px; letter-spacing: 0.45em; text-transform: uppercase; color: var(--text-soft); }
-.brand .name { font-family: var(--serif); font-size: 26px; font-weight: 500; color: var(--text); margin-top: 6px; line-height: 1.15; }
-.brand .meta { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 8px; font-size: 11px; color: var(--text-dim); letter-spacing: 0.06em; text-transform: uppercase; }
+.brand-row { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 6px; }
+.brand-info { min-width: 0; }
+.name-row { display: flex; align-items: baseline; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.brand .name { font-family: var(--serif); font-size: 26px; font-weight: 500; color: var(--text); line-height: 1.15; }
+.brand .meta { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; font-size: 11px; color: var(--text-dim); letter-spacing: 0.06em; text-transform: uppercase; }
 .brand .meta span { padding-bottom: 2px; border-bottom: 1px solid var(--border); }
-.brand .hint { font-size: 12px; color: var(--accent); margin-top: 10px; font-family: var(--serif); font-style: italic; }
+.brand .hint { font-size: 12px; color: var(--accent); margin-top: 6px; font-family: var(--serif); font-style: italic; }
 
 .actions { display: flex; gap: 6px; padding: 14px 16px 12px; flex-shrink: 0; justify-content: center; border-bottom: 1px solid var(--border); }
 .action { background: none; border: none; border-bottom: 1px solid transparent; padding: 6px 16px; font-family: var(--sans); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); cursor: pointer; transition: all .2s; }
@@ -125,11 +128,14 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .wp-meal { display: flex; gap: 12px; font-size: 12px; padding: 1px 0; }
 .wp-lbl { color: var(--text-dim); flex-shrink: 0; min-width: 72px; }
 .wp-val { color: var(--text); text-align: right; flex: 1; }
+.msg-choices { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .msg-choice { border: 1px solid var(--border); background: none; border-radius: 18px; padding: 5px 12px; font-size: 12px; color: var(--text-dim); cursor: pointer; font-family: var(--sans); }
 .msg-choice:hover { border-color: var(--accent); color: var(--accent); }
 .msg-choice.sel { background: var(--accent); border-color: var(--accent); color: #fff; }
 .msg-choice.done { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 .msg-choice.done:hover { background: var(--accent-soft); }
+.msg-choice:disabled { opacity: .45; cursor: default; }
+.msg-choice:disabled:hover { border-color: var(--border); color: var(--text-dim); background: none; }
 
 .modal-overlay { position: fixed; inset: 0; background: rgba(33,29,24,0.3); backdrop-filter: blur(2px); z-index: 9999; display: flex; align-items: center; justify-content: center; }
 .modal { background: var(--surface); border-radius: var(--radius); padding: 26px; width: 320px; max-width: 92vw; box-shadow: 0 12px 40px rgba(0,0,0,0.12); }
@@ -166,7 +172,7 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .chat-bar { display: flex; gap: 10px; padding: 8px 16px 10px; align-items: flex-end; }
 .chat-bar textarea { flex: 1; padding: 10px 0; border: none; border-bottom: 1px solid var(--border); border-radius: 0; font-size: 13px; font-family: var(--sans); color: var(--text); background: transparent; outline: none; resize: none; min-height: 36px; max-height: 70px; }
 .chat-bar textarea:focus { border-bottom-color: var(--accent); }
-.chat-bar .send { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--accent); background: none; color: var(--accent); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .2s; }
+.chat-bar .send { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--accent); background: none; color: var(--accent); cursor: pointer; font-size: 16px; line-height: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .2s; }
 .chat-bar .send:hover { background: var(--accent); color: #fff; }
 .chat-bar .send.stop { background: var(--accent); color: #fff; }
 /* Плашки-нотификации */
@@ -174,24 +180,40 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .banner { display: flex; gap: 8px; align-items: center; border-radius: 8px; padding: 8px 12px; font-size: 13px; background: #fff8e6; border: 1px solid #f0d9a8; }
 .banner.imp { background: #fdecea; border-color: #f0b4a8; font-weight: 600; }
 .banner .b-ico { font-size: 15px; }
+/* Форма (календарь и др.): строка «подпись + контрол» по центру */
+.form-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
+.form-row .f-lbl { width: 110px; flex: none; font-size: 12.5px; color: var(--text-dim); line-height: 1.3; }
+.form-row .modal-inp { flex: 1; min-width: 0; }
 /* Календарь */
 .cal-head { display: flex; align-items: center; gap: 6px; padding: 10px 16px; flex-wrap: wrap; }
 .cal-head .cal-title { flex: 1; font-weight: 700; font-size: 15px; min-width: 130px; }
+.cal-add-ev { margin-left: auto; border: 1px solid var(--accent); color: var(--accent); background: none; border-radius: 14px; padding: 4px 12px; font-size: 12px; cursor: pointer; flex: none; }
+.cal-add-ev:hover { background: var(--accent); color: #fff; }
 .cal-head button { border: 1px solid var(--border); background: none; border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; color: var(--text); }
 .cal-head button:hover { background: var(--bg-soft, #eef2f7); }
 .cal-head .cal-view button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 0 12px 12px; }
 .cal-dow { text-align: center; font-size: 11px; color: var(--text-soft); padding: 4px 0; }
-.cal-cell { min-height: 62px; border: 1px solid var(--border); border-radius: 6px; padding: 3px; font-size: 11px; cursor: pointer; overflow: hidden; }
+.cal-cell { position: relative; aspect-ratio: 3 / 4; border: 1px solid var(--border); border-radius: 6px; padding: 3px; font-size: 11px; cursor: pointer; overflow: hidden; }
 .cal-cell:hover { background: var(--bg-soft, #eef2f7); }
 .cal-cell.other { opacity: .38; }
 .cal-cell.today { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-.cal-num { font-size: 11px; color: var(--text-soft); }
+.cal-ph { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .28; pointer-events: none; border-radius: 5px; transition: opacity .15s ease; }
+.cal-cell:hover .cal-ph, .cal-phwrap:hover .cal-ph { opacity: 1; }
+.cal-phcnt { position: absolute; bottom: 2px; right: 3px; z-index: 1; font-size: 9px; color: var(--text-dim); background: rgba(255, 255, 255, 0.75); border-radius: 6px; padding: 0 4px; pointer-events: none; }
+.cal-num { position: relative; z-index: 1; font-size: 11px; color: var(--text-soft); }
 .cal-cell.today .cal-num { color: var(--accent); font-weight: 700; }
-.cal-ev { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 4px; padding: 1px 4px; margin-top: 1px; background: #e8f0fb; }
+.cal-evs { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; display: flex; flex-direction: column; gap: 1px; padding: 2px; pointer-events: none; }
+.cal-evs .cal-ev { pointer-events: auto; }
+.cal-ev { position: relative; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 4px; padding: 1px 4px; margin-top: 1px; background: #e8f0fb; }
 .cal-ev.imp { background: #fdecea; color: #c0392b; font-weight: 600; }
 .cal-ev.rec::after { content: ' 🔁'; }
 .cal-ev.done { text-decoration: line-through; opacity: .5; }
+.cal-phwrap { position: relative; aspect-ratio: 3 / 4; border-radius: 8px; overflow: hidden; margin: 4px 0; cursor: pointer; }
+.cal-phwrap .cal-ph { opacity: .85; }
+.cal-dgal { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 6px; padding: 10px 18px 14px; }
+.cal-dgal-item { position: relative; aspect-ratio: 3 / 4; border-radius: 8px; overflow: hidden; cursor: pointer; box-shadow: 0 1px 3px rgba(0, 0, 0, .1); }
+.cal-dgal-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .cal-more { font-size: 10px; color: var(--text-soft); }
 .cal-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; padding: 0 12px 12px; }
 .cal-daycol { border: 1px solid var(--border); border-radius: 6px; min-height: 130px; padding: 4px; font-size: 11px; }
@@ -216,6 +238,89 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .fam-row .fam-role { color: var(--text-dim); font-size: 12.5px; }
 .fam-row .s-cat, .llmn-row .s-cat { color: var(--text-soft); font-size: 12px; flex: none; font-style: italic; max-width: 40%; overflow-wrap: anywhere; }
 .budget-cat { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 4px 4px; font-weight: 700; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--text); }
+.mode-card { margin-bottom: 10px; }
+.mode-body { padding: 4px 18px 14px; font-size: 13.5px; line-height: 1.65; white-space: pre-line; overflow-wrap: anywhere; color: var(--text); }
+/* Аватарка и галерея */
+.av { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; cursor: pointer; display: none; border: 2px solid var(--border); background: var(--surface); flex: none; }
+.av.on { display: block; }
+.gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; padding: 14px 18px 18px; }
+.gal-item { position: relative; border-radius: 12px; overflow: hidden; background: #eee; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+.gal-item img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; display: block; }
+.gal-item .gal-video { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; display: block; background: #222; }
+.gal-video-ico { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 34px; height: 34px; border-radius: 50%; background: rgba(0, 0, 0, 0.5); color: #fff; font-size: 13px; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 1; }
+.cal-video-ico { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 26px; height: 26px; border-radius: 50%; background: rgba(0, 0, 0, 0.5); color: #fff; font-size: 10px; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 2; }
+.cal-dgal-video { width: 100%; height: 100%; object-fit: cover; display: block; background: #222; }
+/* Прогресс-бар загрузки */
+.up-wrap { grid-column: 1 / -1; height: 10px; border-radius: 5px; background: rgba(0, 0, 0, 0.06); overflow: hidden; }
+.up-bar { height: 100%; width: 0%; border-radius: 5px; background: var(--accent); font-size: 9px; color: #fff; text-align: center; line-height: 10px; transition: width .1s ease; }
+/* Панель «⏳ Обработка N/M» — карточка как «Добавить фото» (одна колонка сетки, 3:4) */
+.media-panel { aspect-ratio: 3 / 4; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: var(--card, #fff); display: flex; flex-direction: column; min-width: 0; box-shadow: 0 1px 4px rgba(0, 0, 0, .08); }
+.media-panel .mp-title { font-size: 12px; font-weight: 600; margin-bottom: 6px; line-height: 1.35; }
+.media-panel .mp-title.err { color: #c0392b; }
+.media-panel .up-wrap { flex: none; margin-bottom: 6px; height: 8px; }
+.media-panel .mp-list { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.media-panel .mp-row { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--text-dim); line-height: 1.4; }
+.media-panel .mp-row.ok { color: var(--text); }
+.media-panel .mp-row.err { color: #c0392b; }
+.media-panel .mp-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%; }
+.media-panel .mp-st { flex: none; }
+.gal-item .gal-cap { padding: 6px 8px; font-size: 11.5px; color: var(--text-dim); line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gal-item .gal-del { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%; border: none; background: rgba(0,0,0,.45); color: #fff; font-size: 12px; cursor: pointer; opacity: 0; transition: opacity .15s ease; }
+.gal-item:hover .gal-del { opacity: 1; }
+.gal-item .gal-del:hover { background: #c0392b; }
+.gal-add { border: 1.5px dashed var(--border); border-radius: 12px; min-height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; background: none; cursor: pointer; color: var(--text-soft); font-family: var(--sans); font-size: 13px; }
+.gal-add:hover { border-color: var(--accent); color: var(--accent); }
+.gal-add .ga-ico { font-size: 26px; }
+.gal-preview { width: 100%; max-height: 260px; object-fit: contain; border-radius: 10px; margin-bottom: 10px; background: #f5f3ef; }
+.gal-exif { font-size: 12px; color: var(--text-dim); padding: 0 0 10px; line-height: 1.5; }
+.gal-bar { display: flex; gap: 8px; padding: 14px 18px 0; flex-wrap: wrap; }
+.gal-seg { border: 1px solid var(--border); background: none; border-radius: 14px; padding: 4px 12px; font-size: 12px; cursor: pointer; color: var(--text-dim); font-family: var(--sans); }
+.gal-seg:hover { border-color: var(--accent); color: var(--accent); }
+.gal-seg.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.photo-desc-row { display: flex; gap: 8px; align-items: center; padding: 2px 0 10px; }
+.photo-actions { display: flex; justify-content: center; gap: 14px; padding-top: 14px; }
+/* Полноэкранный просмотр фото (оверлей поверх UI) */
+.fs-view { position: fixed; inset: 0; background: rgba(8, 8, 10, 0.93); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+.fs-stage { position: absolute; inset: 0; left: 250px; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: grab; touch-action: none; }
+.fs-img { max-width: 94%; max-height: 92%; object-fit: contain; border-radius: 6px; user-select: none; transform-origin: center center; will-change: transform; box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5); }
+.fs-video { max-width: 94%; max-height: 92%; border-radius: 8px; box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5); outline: none; }
+.fs-close { position: fixed; top: 12px; right: 14px; z-index: 1001; width: 38px; height: 38px; border-radius: 50%; border: none; background: rgba(255, 255, 255, 0.14); color: #fff; font-size: 16px; cursor: pointer; }
+.fs-close:hover { background: rgba(255, 255, 255, 0.28); }
+.fs-nav { position: fixed; top: 50%; transform: translateY(-50%); z-index: 1001; width: 44px; height: 44px; border-radius: 50%; border: none; background: rgba(255, 255, 255, 0.14); color: #fff; font-size: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.fs-nav:hover { background: rgba(255, 255, 255, 0.3); }
+.fs-nav.l { left: 268px; }
+.fs-nav.r { right: 14px; }
+/* Левая колонка-панель: информация (описание, дата, GPS) и контролы — на всю высоту */
+.fs-side { position: fixed; left: 0; top: 0; bottom: 0; width: 250px; z-index: 1001; display: flex; flex-direction: column; gap: 10px; padding: 16px 14px; background: rgba(12, 12, 16, 0.82); border-radius: 0 14px 14px 0; backdrop-filter: blur(8px); overflow-y: auto; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4); }
+.fs-side .modal-inp { flex: none; color: #fff; border-bottom-color: rgba(255, 255, 255, 0.35); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 3px rgba(0, 0, 0, 0.8); font-size: 13px; }
+.fs-side .modal-inp::placeholder { color: rgba(255, 255, 255, 0.7); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 3px rgba(0, 0, 0, 0.8); }
+.fs-side .fs-info { font-size: 12.5px; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 3px rgba(0, 0, 0, 0.8); line-height: 1.65; display: flex; flex-direction: column; gap: 3px; word-break: break-word; }
+.fs-side .fs-acts { display: flex; flex-direction: column; gap: 8px; }
+.fs-side .fs-acts .modal-btn { width: 100%; justify-content: center; }
+@media (max-width: 900px) {
+  .fs-side { top: auto; bottom: 14px; left: 14px; right: 14px; width: auto; max-height: 45vh; border-radius: 14px; }
+  .fs-stage { left: 0; }
+  .fs-nav.l { left: 14px; }
+}
+/* Погода */
+.weather-hint { padding: 4px 18px 14px; font-size: 12.5px; color: var(--text-dim); line-height: 1.55; }
+.weather-body { padding: 2px 18px 14px; }
+.w-today { display: flex; align-items: center; gap: 16px; padding: 6px 0 12px; border-bottom: 1px solid rgba(0,0,0,.05); }
+.w-now { display: flex; align-items: center; gap: 8px; }
+.w-ico { font-size: 38px; }
+.w-temp { font-size: 34px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.w-desc { font-size: 14px; font-weight: 500; }
+.w-meta { font-size: 12px; color: var(--text-dim); margin-top: 3px; line-height: 1.5; }
+.w-meta2 { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+.w-days { display: flex; flex-direction: column; }
+.w-day { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(0,0,0,.04); font-size: 12.5px; }
+.w-day:last-child { border-bottom: none; }
+.w-dn { width: 30px; font-weight: 600; flex: none; }
+.w-di { font-size: 17px; flex: none; width: 24px; text-align: center; }
+.w-ddesc { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); }
+.w-dt { flex: none; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.w-dp { flex: none; width: 64px; text-align: right; font-size: 11.5px; color: var(--text-soft); }
+.w-load { padding: 10px 0; font-size: 12.5px; color: var(--text-soft); }
 .budget-cat .s-cat { font-weight: 600; letter-spacing: 0; text-transform: none; font-size: 13px; color: var(--accent); font-variant-numeric: tabular-nums; }
 .budget-row .budget-note { color: var(--text-soft); font-size: 12px; flex: none; }
 .budget-row .budget-amt { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
@@ -284,6 +389,9 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 @media (min-width: 1024px) {
   #app { display: grid; grid-template-columns: minmax(0, 1100px) 400px; grid-template-rows: auto auto auto minmax(0, 1fr); max-width: 1560px; margin: 0 auto; border: none; }
   .brand { grid-column: 1; grid-row: 1; text-align: left; padding: 26px 28px 8px; }
+  .brand-row { justify-content: flex-start; }
+  .brand-row .av { margin-left: auto; } /* аватарка прижата к правому краю шапки */
+  .name-row { justify-content: flex-start; }
   .brand .meta { justify-content: flex-start; }
   .brand .hint { text-align: left; }
   .actions { grid-column: 1; grid-row: 2; justify-content: flex-start; padding: 12px 28px; }
@@ -322,13 +430,19 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 <div id="app">
   <div class="brand">
     <div class="mark">Baby Diary</div>
-    <div class="name" id="nm">—</div>
-    <div class="meta" id="mt"></div>
-    <div class="hint" id="ht"></div>
+    <div class="brand-row">
+      <div class="brand-info">
+        <div class="name-row"><span class="name" id="nm">—</span><span class="meta" id="mt"></span></div>
+        <div class="hint" id="ht"></div>
+      </div>
+      <img id="av" class="av" alt="Фото" title="Сменить фото">
+    </div>
   </div>
   <div class="actions" id="qa"></div>
   <div class="tabs" id="tb"></div>
   <div class="content active" id="c-dash"></div>
+  <div class="content" id="c-mode"></div>
+  <div class="content" id="c-photos"></div>
   <div class="content" id="c-skills"></div>
   <div class="content" id="c-tips"></div>
   <div class="content" id="c-recipes"></div>
@@ -345,7 +459,7 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
   <div class="chat-panel">
     <div class="model-row"><button id="mp">Pro</button><button id="mf" class="active">Flash</button><button id="cc" class="collapse" title="Свернуть чат">▾</button><button id="cud" class="undo" title="Отменить последний ответ">↶</button></div>
     <div class="chat-msgs" id="cm"></div>
-    <div class="chat-bar"><textarea id="ci" placeholder="Написать..." rows="1"></textarea><button class="send" id="csd">→</button></div>
+    <div class="chat-bar"><textarea id="ci" placeholder="Написать..." rows="1"></textarea><button class="send" id="csd">▶</button></div>
   </div>
 </div>
 `);
@@ -417,13 +531,14 @@ function timeField(): HTMLInputElement {
   const inp = el('input', { type: 'datetime-local', class: 'modal-inp', value: now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate()) + 'T' + pad(now.getHours()) + ':' + pad(now.getMinutes()) }) as HTMLInputElement;
   return inp;
 }
-function tsFromTime(t?: string): number {
+function tsFromTime(t?: string, allowFuture = false): number {
   if (!t) return Date.now();
   // 'ГГГГ-ММ-ДДTЧЧ:ММ' — парсится как локальное время
   const d = new Date(t);
   if (isNaN(d.getTime())) return Date.now();
-  // Запись в будущем (случайный выбор даты) — ставим «сейчас»
-  if (d.getTime() > Date.now()) return Date.now();
+  // Запись в будущем (случайный выбор даты) — ставим «сейчас».
+  // При РЕДАКТИРОВАНИИ события (allowFuture) будущее допустимо — это перенос.
+  if (!allowFuture && d.getTime() > Date.now()) return Date.now();
   return d.getTime();
 }
 
@@ -472,18 +587,49 @@ function renderAll() {
   if (tabsKey !== lastTabsKey) { lastTabsKey = tabsKey; setupTabs(); }
   const d = S.details || {};
   const nm = $('#nm'), mt = $('#mt'), ht = $('#ht');
+  const strOf = (v: unknown): string => {
+    if (typeof v === 'string') return v;
+    if (typeof v === 'number') return String(v);
+    if (v && typeof v === 'object') {
+      const o = v as Record<string, unknown>;
+      if (typeof o.type === 'string') return o.type;
+      if (typeof o.name === 'string') return o.name;
+    }
+    return '';
+  };
+  // В шапке — ОДНО предложение, не больше; полный текст — во вкладке «Режим»
+  const shortOf = (v: unknown): string => {
+    const s = strOf(v);
+    const m = s.match(/^(.+?)([.!?])(?:\s|$)/);
+    if (m && m[1].trim()) {
+      const rest = s.slice(m[0].length).trim();
+      return rest ? m[1].trim() + '…' : m[1].trim() + m[2];
+    }
+    return s.length > 60 ? s.slice(0, 60) + '…' : s;
+  };
   if (nm) nm.textContent = S.name || '—';
+  // Аватарка: показываем, если задана
+  const avEl = $('#av') as HTMLImageElement;
+  if (avEl) {
+    if (S.avatar) { avEl.src = '/api/photo/' + CHAT_ID + '/' + S.avatar + '?th=1'; avEl.classList.add('on'); }
+    else avEl.classList.remove('on');
+  }
   if (mt) {
     clear(mt);
     const p: string[] = [];
     const a = ageStr(S.birthDate); if (a) p.push(a);
-    if (S.gender) p.push(S.gender);
-    if (d.feeding) p.push(d.feeding);
+    if (S.gender) p.push(strOf(S.gender));
     if (d.allergies && d.allergies !== 'нет' && d.allergies !== 'не обнаружено') p.push('Аллергии');
     for (const s of p) append(mt, el('span', {}, s));
   }
-  if (ht) ht.textContent = (S.name && S.birthDate) ? '' : 'Напишите в чат — я помогу заполнить дневник';
+  // Под именем: милое описание (blurb) — одно предложение; иначе подсказка
+  if (ht) {
+    const blurb = strOf(S.blurb);
+    ht.textContent = blurb ? shortOf(blurb) : (d.feeding ? shortOf(d.feeding) : ((S.name && S.birthDate) ? '' : 'Напишите в чат — я помогу заполнить дневник'));
+  }
 
+  renderMode();
+  renderPhotos();
   renderDash();
   renderSkills();
   renderTips();
@@ -808,31 +954,647 @@ function renderShopping() {
   append(c, askFooter('Дополни и обнови список покупок: продукты на неделю (с учётом меню), одежда и что ещё нужно купить.'));
 }
 
-/* Карточка события таймлайна: клик по маркеру */
+/* Карточка события таймлайна: клик по маркеру (просмотр + смена даты/времени + удаление) */
 function htlEventCard(it: any) {
   const d = it.e;
+  const key = it.kind === 'feeds' ? 'feeds' : it.kind === 'sleeps' ? 'sleeps' : 'events';
+  // Дата+время локально (НЕ toISOString — UTC-сдвиг уедет на день назад)
+  const dt = new Date(d.timestamp);
+  const pad = (n: number) => ('0' + n).slice(-2);
+  const tf = el('input', { type: 'datetime-local', class: 'modal-inp', value: dt.getFullYear() + '-' + pad(dt.getMonth() + 1) + '-' + pad(dt.getDate()) + 'T' + pad(dt.getHours()) + ':' + pad(dt.getMinutes()) }) as HTMLInputElement;
   modal(it.title, (b) => {
     append(b, el('div', { style: 'font-size:26px;text-align:center;padding:8px 0 6px' }, it.icon));
     const rows: [string, string][] = [];
-    rows.push(['Время', fmtTime(d.timestamp)]);
     if (it.kind === 'sleeps' && d.end) rows.push(['Длительность', durStr(d.end - d.timestamp)]);
     if (it.kind === 'feeds' && d.amount) rows.push(['Объём', String(d.amount) + ' мл']);
     if (d.type) rows.push(['Тип', String(d.type)]);
     if (d.note) rows.push(['Заметка', String(d.note)]);
     for (const [l, v] of rows) append(b, el('div', { class: 'clothes-row' }, el('span', { class: 'c-lbl' }, l), el('span', { class: 'c-val' }, v)));
+    append(b, el('div', { class: 'clothes-row' }, el('span', { class: 'c-lbl' }, 'Дата и время'), tf));
     const del = el('button', { class: 'modal-btn danger' }, 'Удалить запись');
     del.addEventListener('click', () => {
       if (!confirm('Удалить эту запись?')) return;
-      const arr = it.kind === 'feeds' ? (S.feeds || []) : it.kind === 'sleeps' ? (S.sleeps || []) : (S.events || []);
-      const next = arr.slice(); next.splice(it.i, 1);
-      saveState({ feeds: it.kind === 'feeds' ? next : S.feeds || [], sleeps: it.kind === 'sleeps' ? next : S.sleeps || [], events: it.kind === 'events' ? next : S.events || [] });
+      // Серверный merge только дополняет массивы — удаление работает ТОЛЬКО через маркер _delete
+      // (копия записи целиком, включая timestamp: delByKey матчит по title|note|timestamp).
+      saveState({ [key]: [{ ...d, _delete: true }] });
       document.querySelector('.modal-overlay')?.remove();
     });
     append(b, el('div', { style: 'text-align:center;padding-top:12px' }, del));
-  }, () => { }, true);
+  }, () => {
+    const newTs = tsFromTime(tf.value, true);
+    if (newTs === d.timestamp) return; // ничего не меняли
+    const { _delete, ...rest } = d;
+    saveState({ [key]: [{ ...d, _delete: true }, { ...rest, timestamp: newTs }] });
+  });
 }
 
 let htlDays = 5; // глубина горизонтального таймлайна (дней)
+
+// --- Фото: EXIF + обработка перед загрузкой ---
+/** Данные из EXIF: ориентация (0x0112), дата съёмки (0x9003 в ExifIFD), GPS (IFD GPSInfo). */
+function getExifInfo(buf: ArrayBuffer): { orientation: number; taken: string | null; gps: { lat: number; lon: number } | null } {
+  const info = { orientation: 1, taken: null as string | null, gps: null as { lat: number; lon: number } | null };
+  try {
+    const dv = new DataView(buf);
+    if (dv.getUint16(0, false) !== 0xffd8) return info; // не JPEG
+    const ascii = (p: number, len: number): string => {
+      const bytes: number[] = [];
+      for (let i = 0; i < len; i++) {
+        const b = dv.getUint8(p + i);
+        if (b === 0) break;
+        bytes.push(b);
+      }
+      return String.fromCharCode(...bytes);
+    };
+    const rational = (p: number, little: boolean): number => {
+      const num = dv.getUint32(p, little), den = dv.getUint32(p + 4, little);
+      return den ? num / den : NaN;
+    };
+    let off = 2;
+    while (off + 4 < dv.byteLength) {
+      // ВНИМАНИЕ: проверяем БАЙТ маркера (getUint8), а не слово — иначе FF E0/E1 ≠ 0xff и выходим сразу
+      if (dv.getUint8(off) !== 0xff) return info;
+      const marker = dv.getUint8(off + 1);
+      if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd9)) { off += 2; continue; }
+      const len = dv.getUint16(off + 2, false);
+      if (marker === 0xe1) { // APP1 — Exif
+        let p = off + 4;
+        if (dv.getUint32(p, false) === 0x45786966 && dv.getUint16(p + 4, false) === 0) { // 'Exif\0\0'
+          p += 6;
+          const bo = dv.getUint16(p, false);
+          if (bo !== 0x4949 && bo !== 0x4d4d) return info;
+          const little = bo === 0x4949;
+          const ifd0 = dv.getUint32(p + 4, little);
+          const readIfd = (base: number): Map<number, [number, number]> => {
+            // p уже указывает на начало TIFF (после 'Exif\0\0') — офсеты IFD относительны p
+            const tiff = p;
+            const tags = new Map<number, [number, number]>();
+            let q = tiff + ifd0;
+            const n = dv.getUint16(q, little);
+            q += 2;
+            for (let i = 0; i < n && q + 12 <= dv.byteLength; i++) {
+              const tag = dv.getUint16(q, little);
+              const type = dv.getUint16(q + 2, little);
+              const count = dv.getUint32(q + 4, little);
+              tags.set(tag, [type, count]);
+              tags.set(-(tag + 100000), q + 8); // офсет данных (некрасиво, но компактно)
+              q += 12;
+            }
+            return tags;
+          };
+          const ifd0Tags = readIfd(ifd0);
+          const valPtr = (tag: number, type: number, count: number): number => {
+            const size = (type === 1 || type === 7) ? 1 : type === 2 ? 1 : type === 3 ? 2 : type === 4 || type === 9 ? 4 : 8;
+            const dataOff = ifd0Tags.get(-(tag + 100000)) ?? 0;
+            return (size * count > 4 || type === 5 || type === 10) ? (p + dv.getUint32(dataOff, little)) : dataOff;
+          };
+          // Ориентация
+          if (ifd0Tags.has(0x0112)) {
+            const [t, c] = ifd0Tags.get(0x0112)!;
+            info.orientation = dv.getUint16(valPtr(0x0112, t, c), little) || 1;
+          }
+          // ExifIFD → дата съёмки
+          if (ifd0Tags.has(0x8769)) {
+            const [t, c] = ifd0Tags.get(0x8769)!;
+            const exifIfd = dv.getUint32(valPtr(0x8769, t, c), little);
+            const tiff = p;
+            let q = tiff + exifIfd;
+            const n = dv.getUint16(q, little);
+            q += 2;
+            for (let i = 0; i < n && q + 12 <= dv.byteLength; i++) {
+              const tag = dv.getUint16(q, little);
+              const type = dv.getUint16(q + 2, little);
+              const count = dv.getUint32(q + 4, little);
+              if (tag === 0x9003) { // DateTimeOriginal 'YYYY:MM:DD HH:MM:SS'
+                const size = type === 2 ? 1 : 4;
+                const dOff = size * count > 4 ? tiff + dv.getUint32(q + 8, little) : q + 8;
+                info.taken = ascii(dOff, Math.min(count, 19));
+              }
+              q += 12;
+            }
+          }
+          // Некоторые обработчики (PIL и др.) пишут DateTimeOriginal прямо в IFD0 — fallback
+          // valPtr уже возвращает АБСОЛЮТНУЮ позицию данных — повторно p/офсет применять нельзя
+          if (!info.taken && ifd0Tags.has(0x9003)) {
+            const [t, c] = ifd0Tags.get(0x9003)!;
+            info.taken = ascii(valPtr(0x9003, t, c), Math.min(c, 19));
+          }
+          // GPSInfo IFD → координаты
+          if (ifd0Tags.has(0x8825)) {
+            const [t, c] = ifd0Tags.get(0x8825)!;
+            const gpsIfd = dv.getUint32(valPtr(0x8825, t, c), little);
+            const tiff = p;
+            let q = tiff + gpsIfd;
+            const n = dv.getUint16(q, little);
+            q += 2;
+            let lat: number | null = null, lon: number | null = null;
+            let latRef = '', lonRef = '';
+            for (let i = 0; i < n && q + 12 <= dv.byteLength; i++) {
+              const tag = dv.getUint16(q, little);
+              const type = dv.getUint16(q + 2, little);
+              const count = dv.getUint32(q + 4, little);
+              if (tag === 0x0001) latRef = ascii(q + 8, 1); // GPSLatitudeRef
+              else if (tag === 0x0002) { // GPSLatitude: 3 RATIONAL
+                const dOff = type === 5 ? tiff + dv.getUint32(q + 8, little) : q + 8;
+                const d = rational(dOff, little), m = rational(dOff + 8, little), s = rational(dOff + 16, little);
+                lat = d + m / 60 + s / 3600;
+              } else if (tag === 0x0003) lonRef = ascii(q + 8, 1);
+              else if (tag === 0x0004) {
+                const dOff = type === 5 ? tiff + dv.getUint32(q + 8, little) : q + 8;
+                const d = rational(dOff, little), m = rational(dOff + 8, little), s = rational(dOff + 16, little);
+                lon = d + m / 60 + s / 3600;
+              }
+              q += 12;
+            }
+            if (lat != null && lon != null && isFinite(lat) && isFinite(lon)) {
+              if (latRef === 'S') lat = -lat;
+              if (lonRef === 'W') lon = -lon;
+              info.gps = { lat: Math.round(lat * 1e6) / 1e6, lon: Math.round(lon * 1e6) / 1e6 };
+            }
+          }
+        }
+        return info;
+      }
+      off += 2 + len;
+    }
+  } catch { /* мусор — без EXIF */ }
+  return info;
+}
+
+/** Ресайз через canvas; EXIF-ориентацию НЕ поворачиваем вручную — современные браузеры
+ *  применяют её при декодировании (image-orientation: from-image), drawImage рисует уже
+ *  повёрнутое изображение. Ручной поворот давал ДВОЙНОЕ применение (баг: IMG_0270 c iPhone). */
+function processPhoto(file: File): Promise<{ dataUrl: string; exif: { taken: string | null; gps: { lat: number; lon: number } | null } }> {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onerror = () => reject(new Error('read failed'));
+    fr.onload = () => {
+      const buf = fr.result as ArrayBuffer;
+      const exif = getExifInfo(buf);
+      const img = new Image();
+      img.onerror = () => reject(new Error('decode failed'));
+      img.onload = () => {
+        const MAX = 1200;
+        const iw = img.naturalWidth, ih = img.naturalHeight;
+        const sc = Math.min(1, MAX / Math.max(iw, ih));
+        const w = Math.max(1, Math.round(iw * sc)), h = Math.max(1, Math.round(ih * sc));
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        const ctx = cv.getContext('2d');
+        if (!ctx) { reject(new Error('no canvas')); return; }
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve({ dataUrl: cv.toDataURL('image/jpeg', 0.85), exif });
+      };
+      img.src = URL.createObjectURL(new Blob([buf], { type: 'image/jpeg' }));
+    };
+    fr.readAsArrayBuffer(file);
+  });
+}
+
+/** dataURL → Blob (для бинарной загрузки с прогрессом) */
+function dataUrlToBlob(dataUrl: string): Promise<Blob> {
+  return fetch(dataUrl).then((r) => r.blob());
+}
+
+/** Бинарный POST медиа с прогрессом загрузки (XHR upload.onprogress). */
+function xhrPostMedia(url: string, body: Blob, fileName: string, kind: 'photo' | 'video', desc: string, exif: any, onProgress?: (pct: number) => void): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    xhr.setRequestHeader('X-File-Name', encodeURIComponent(fileName || (kind === 'video' ? 'video.mp4' : 'photo.jpg')));
+    xhr.setRequestHeader('X-Kind', kind);
+    xhr.setRequestHeader('X-Desc', encodeURIComponent(desc));
+    if (exif) xhr.setRequestHeader('X-Exif', encodeURIComponent(JSON.stringify(exif)));
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100)); };
+    xhr.onload = () => {
+      try {
+        const j = JSON.parse(xhr.responseText);
+        if (xhr.status >= 400) reject(new Error((j && j.error) || 'HTTP ' + xhr.status));
+        else resolve(j);
+      } catch { reject(new Error('bad response')); }
+    };
+    xhr.onerror = () => reject(new Error('network error'));
+    xhr.send(body);
+  });
+}
+
+/** Загрузка медиа: только фаза UPLOAD (ответ сервера мгновенный — файл встал в очередь).
+ *  Прогресс обработки (конвертация) приходит по WS '/media-queue'. */
+function uploadMedia(file: File, kind: 'photo' | 'video', desc: string, pre?: { dataUrl: string; exif: { taken: string | null; gps: { lat: number; lon: number } | null } }, onProgress?: (pct: number) => void): Promise<any> {
+  const url = '/api/chat/' + CHAT_ID + '/media?clientId=' + CID + '&clientSecret=' + SEC;
+  if (kind === 'video') {
+    return xhrPostMedia(url, file, file.name, 'video', desc, null, onProgress);
+  }
+  const p = pre ? Promise.resolve(pre) : processPhoto(file);
+  return p.then((r) => dataUrlToBlob(r.dataUrl).then((blob) => xhrPostMedia(url, blob, file.name || 'photo.jpg', 'photo', desc, r.exif, onProgress)));
+}
+
+function pickPhotoFile(onPick: (f: File) => void): void {
+  const inp = el('input', { type: 'file', accept: 'image/*,video/*' }) as HTMLInputElement;
+  inp.addEventListener('change', () => { const f = inp.files && inp.files[0]; if (f) onPick(f); });
+  inp.click();
+}
+
+function pickPhotoFiles(onPick: (files: File[]) => void): void {
+  const inp = el('input', { type: 'file', accept: 'image/*,video/*', multiple: true }) as HTMLInputElement;
+  inp.addEventListener('change', () => { const fs = Array.from(inp.files || []); if (fs.length) onPick(fs); });
+  inp.click();
+}
+
+/** 'YYYY:MM:DD HH:MM:SS' (EXIF) → 'ДД.ММ.ГГГГ ЧЧ:ММ' */
+function fmtTaken(s: string): string {
+  const m = s.match(/^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2})/);
+  if (!m) return s;
+  return m[3] + '.' + m[2] + '.' + m[1] + ' ' + m[4] + ':' + m[5];
+}
+
+/** Секунды → 'М:СС' (длительность видео) */
+function fmtDur(sec: number): string {
+  const s = Math.max(0, Math.round(sec));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+
+/** Полноэкранный просмотр фото: зум колесом/пинчем, драг мышью/пальцем, двойной клик — 2.5x.
+ *  Оверлей поверх приложения — остальной UI остаётся под ним. */
+function photoFullscreen(p: any, nav?: any[]) {
+  document.querySelectorAll('.modal-overlay, .fs-view').forEach((x) => x.remove());
+  // Список для листания ◀▶: переданный контекст (например, фото дня) или вся галерея
+  const sorted = nav || (S.photos || []).slice().sort((a, b) => galDir * (photoSortKey(a) - photoSortKey(b)));
+  const idx = sorted.findIndex((x: any) => x.id === p.id);
+  const ov = el('div', { class: 'fs-view' });
+  const stage = el('div', { class: 'fs-stage' });
+  const isVideo = p.type === 'video';
+  const src = '/api/photo/' + CHAT_ID + '/' + p.id;
+  // Видео — native controls (autoplay), без зума/драга; фото — как раньше
+  const media = isVideo
+    ? (el('video', { class: 'fs-video', src, controls: '', autoplay: '', playsinline: '' }) as HTMLVideoElement)
+    : (el('img', { class: 'fs-img', src, alt: p.desc || '' }) as HTMLImageElement);
+  let scale = 1, tx = 0, ty = 0;
+  let onMove: ((e: MouseEvent) => void) | null = null;
+  let onUp: (() => void) | null = null;
+  const apply = () => { media.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')'; };
+  if (!isVideo) {
+    // ВАЖНО: img draggable по умолчанию — браузер перехватывает нажатие в native drag
+    // (картинка «тянется как файл», mousemove/mouseup не приходят). Отключаем.
+    (media as HTMLImageElement).draggable = false;
+    stage.addEventListener('dragstart', (e: DragEvent) => e.preventDefault());
+    // Зум колесом (от курсора — держим точку под курсором неподвижной)
+    stage.addEventListener('wheel', (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = stage.getBoundingClientRect();
+      const cx = e.clientX - rect.left - rect.width / 2 - tx;
+      const cy = e.clientY - rect.top - rect.height / 2 - ty;
+      const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+      const ns = Math.min(6, Math.max(1, scale * factor));
+      if (ns === scale) return;
+      tx -= cx * (ns / scale - 1);
+      ty -= cy * (ns / scale - 1);
+      scale = ns;
+      apply();
+    }, { passive: false });
+    // Драг мышью — именованные обработчики, чтобы снимать их при закрытии/листании
+    let dragging = false, sx = 0, sy = 0, stx = 0, sty = 0;
+    onMove = (e: MouseEvent) => { if (!dragging) return; tx = stx + (e.clientX - sx); ty = sty + (e.clientY - sy); apply(); };
+    onUp = () => { dragging = false; stage.style.cursor = 'grab'; };
+    stage.addEventListener('mousedown', (e: MouseEvent) => { dragging = true; sx = e.clientX; sy = e.clientY; stx = tx; sty = ty; stage.style.cursor = 'grabbing'; });
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  // Тач: драг + пинч-зум
+  let pinch0 = 0, pScale = 1, pTx = 0, pTy = 0;
+  stage.addEventListener('touchstart', (e: TouchEvent) => {
+    if (e.touches.length === 2) { pinch0 = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); pScale = scale; pTx = tx; pTy = ty; dragging = false; }
+    else if (e.touches.length === 1) { dragging = true; sx = e.touches[0].clientX; sy = e.touches[0].clientY; stx = tx; sty = ty; }
+  }, { passive: true });
+  stage.addEventListener('touchmove', (e: TouchEvent) => {
+    if (e.touches.length === 2) {
+      const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      if (pinch0 > 0) scale = Math.min(6, Math.max(1, pScale * (d / pinch0)));
+      apply();
+    } else if (dragging && e.touches.length === 1) {
+      tx = stx + (e.touches[0].clientX - sx); ty = sty + (e.touches[0].clientY - sy); apply();
+    }
+  }, { passive: true });
+  stage.addEventListener('touchend', () => { dragging = false; pinch0 = 0; }, { passive: true });
+  // Двойной клик — 2.5x / сброс
+  media.addEventListener('dblclick', () => { if (scale > 1) { scale = 1; tx = 0; ty = 0; } else { scale = 2.5; tx = 0; ty = 0; } apply(); });
+  } // конец if (!isVideo) — для видео зум/драг не нужны (native controls)
+  // Панель слева: описание, EXIF (дата съёмки, длительность, GPS), действия
+  let desc = String(p.desc || '');
+  const bar = el('div', { class: 'fs-side' });
+  const ni = el('input', { type: 'text', class: 'modal-inp', value: desc, placeholder: 'Описание (необязательно)' }) as HTMLInputElement;
+  ni.addEventListener('input', () => { desc = ni.value; });
+  ni.addEventListener('blur', () => { if (desc !== String(p.desc || '')) saveState({ photos: [{ id: p.id, desc }] }); });
+  const ex = p.exif;
+  const info: string[] = [];
+  if (p.duration) info.push('⏱ ' + fmtDur(p.duration));
+  if (ex && ex.taken) info.push('📅 Снято: ' + fmtTaken(ex.taken));
+  if (ex && ex.gps) info.push('📍 ' + ex.gps.lat.toFixed(4) + ', ' + ex.gps.lon.toFixed(4));
+  const acts: HTMLElement[] = [];
+  if (!isVideo) {
+    const setAv = el('button', { class: 'modal-btn' + (S.avatar === p.id ? ' sel' : '') }, S.avatar === p.id ? '⭐ Это аватарка' : 'Сделать аватаркой');
+    setAv.addEventListener('click', () => { saveState({ avatar: p.id }); setAv.textContent = '⭐ Это аватарка'; setAv.classList.add('sel'); });
+    acts.push(setAv);
+  }
+  const del = el('button', { class: 'modal-btn danger' }, '🗑 Удалить');
+  del.addEventListener('click', () => {
+    if (!confirm('Удалить это фото?')) return;
+    const extra: any = { photos: [{ id: p.id, _delete: true }] };
+    if (S.avatar === p.id) extra.avatar = '';
+    saveState(extra);
+    closeFs();
+  });
+  append(bar, ni);
+  if (info.length) append(bar, el('span', { class: 'fs-info' }, info.join('  ·  ')));
+  append(bar, el('span', { class: 'fs-acts' }, ...acts, del));
+  // Навигация: стрелки ◀ ▶ (в порядке сортировки галереи) + клавиши ← → Esc
+  // ВАЖНО: при листании снимаем ВСЕ window-обработчики старого просмотра —
+  // иначе они копятся и при нажатии клавиш запускают лавину пересозданий (виснет после ~10 фото)
+  const closeFs = () => {
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+    window.removeEventListener('keydown', onKey);
+    ov.remove();
+  };
+  const go = (d: number) => { const t = sorted[idx + d]; if (t) { closeFs(); photoFullscreen(t, nav); } };
+  if (sorted.length > 1) {
+    if (idx > 0) { const l = el('button', { class: 'fs-nav l', title: 'Предыдущее (←)' }, '◀'); l.addEventListener('click', () => go(-1)); append(ov, l); }
+    if (idx >= 0 && idx < sorted.length - 1) { const r = el('button', { class: 'fs-nav r', title: 'Следующее (→)' }, '▶'); r.addEventListener('click', () => go(1)); append(ov, r); }
+  }
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === 'ArrowLeft') go(-1);
+    else if (e.key === 'ArrowRight') go(1);
+    else if (e.key === 'Escape') closeFs();
+  };
+  window.addEventListener('keydown', onKey);
+  const close = el('button', { class: 'fs-close' }, '✕');
+  close.addEventListener('click', () => closeFs());
+  ov.addEventListener('click', (e: MouseEvent) => { if (e.target === ov) closeFs(); });
+  append(stage, media);
+  append(ov, stage, bar, close);
+  append(document.body, ov);
+}
+
+function photoModal(p: any) {
+  // Защита от стака модалок
+  document.querySelectorAll('.modal-overlay').forEach((x) => x.remove());
+  let desc = String(p.desc || '');
+  modal('Фото', (b) => {
+    append(b, el('img', { class: 'gal-preview', src: '/api/photo/' + CHAT_ID + '/' + p.id }));
+    const ex = p.exif;
+    if (ex && (ex.taken || ex.gps)) {
+      const parts: string[] = [];
+      if (ex.taken) parts.push('📅 Снято: ' + fmtTaken(ex.taken));
+      if (ex.gps) parts.push('📍 ' + ex.gps.lat.toFixed(4) + ', ' + ex.gps.lon.toFixed(4));
+      append(b, el('div', { class: 'gal-exif' }, parts.join('  ·  ')));
+    }
+    const ni = el('input', { type: 'text', class: 'modal-inp', value: desc, placeholder: 'Описание (необязательно)' }) as HTMLInputElement;
+    ni.addEventListener('input', () => { desc = ni.value; });
+    append(b, el('div', { class: 'photo-desc-row' }, ni));
+    const setAv = el('button', { class: 'modal-btn' + (S.avatar === p.id ? ' sel' : '') }, S.avatar === p.id ? '⭐ Это аватарка' : 'Сделать аватаркой');
+    setAv.addEventListener('click', () => { saveState({ avatar: p.id }); setAv.textContent = '⭐ Это аватарка'; setAv.classList.add('sel'); });
+    const del = el('button', { class: 'modal-btn danger' }, 'Удалить фото');
+    del.addEventListener('click', () => {
+      if (!confirm('Удалить это фото?')) return;
+      const extra: any = { photos: [{ id: p.id, _delete: true }] };
+      if (S.avatar === p.id) extra.avatar = '';
+      saveState(extra);
+      document.querySelector('.modal-overlay')?.remove();
+    });
+    append(b, el('div', { class: 'photo-actions' }, setAv, del));
+  }, () => {
+    if (desc !== String(p.desc || '')) saveState({ photos: [{ id: p.id, desc }] });
+  }, true);
+}
+
+// Сортировка галереи: по дате добавления (ts) или дате съёмки (exif.taken); -1 = новые сверху
+let galSort: 'ts' | 'taken' = 'taken';
+let galDir = -1;
+
+/** 'YYYY:MM:DD HH:MM:SS' (EXIF) → локальный timestamp */
+function exifTs(s: string): number {
+  const m = s.match(/^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2})/);
+  if (!m) return NaN;
+  return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime();
+}
+
+function photoSortKey(p: any): number {
+  const base = galSort === 'taken' ? (p.exif && p.exif.taken ? exifTs(p.exif.taken) : NaN) : p.ts;
+  return isNaN(base) ? -Infinity : base; // без даты — вниз
+}
+
+function renderPhotos() {
+  const c = $('#c-photos'); if (!c) return; clear(c);
+  const photos = S.photos || [];
+  const sorted = photos.slice().sort((a, b) => galDir * (photoSortKey(a) - photoSortKey(b)));
+  const bar = el('div', { class: 'gal-bar' });
+  const seg = (label: string, key: 'ts' | 'taken') => {
+    const b = el('button', { class: 'gal-seg' + (galSort === key ? ' on' : '') }, label + (galSort === key ? (galDir === -1 ? ' ↓' : ' ↑') : ''));
+    b.addEventListener('click', () => {
+      if (galSort === key) galDir = -galDir; else { galSort = key; galDir = -1; }
+      renderPhotos();
+    });
+    return b;
+  };
+  append(bar, seg('📥 Добавление', 'ts'), seg('📅 Дата фото', 'taken'));
+  append(c, bar);
+  const grid = el('div', { class: 'gal-grid' });
+  const add = el('button', { class: 'gal-add' }, el('span', { class: 'ga-ico' }, '📷'), 'Добавить фото');
+  add.addEventListener('click', () => {
+    pickPhotoFiles((files) => {
+      if (files.length === 1) {
+        // Одно медиа — превью + описание перед загрузкой
+        const f = files[0];
+        const isVideo = f.type.startsWith('video/');
+        const ready: Promise<{ kind: 'photo' | 'video'; dataUrl?: string; exif?: { taken: string | null; gps: { lat: number; lon: number } | null } }> =
+          isVideo ? Promise.resolve({ kind: 'video' }) : processPhoto(f).then((r) => ({ kind: 'photo', dataUrl: r.dataUrl, exif: r.exif }));
+        ready.then((r) => {
+          let desc = '';
+          let upBarEl: HTMLElement | null = null;
+          document.querySelectorAll('.modal-overlay').forEach((x) => x.remove());
+          modal('Добавить фото', (b) => {
+            if (r.kind === 'video') {
+              append(b, el('video', { class: 'gal-preview', src: URL.createObjectURL(f), muted: true, playsinline: '', controls: '' }));
+            } else {
+              append(b, el('img', { class: 'gal-preview', src: r.dataUrl }));
+            }
+            const ni = el('input', { type: 'text', class: 'modal-inp', value: '', placeholder: 'Описание (необязательно)' }) as HTMLInputElement;
+            ni.addEventListener('input', () => { desc = ni.value; });
+            append(b, ni);
+            const pb = el('div', { class: 'up-wrap' });
+            append(pb, el('div', { class: 'up-bar' }));
+            append(b, pb);
+            upBarEl = pb.querySelector('.up-bar');
+          }, () => {
+            // Одиночный файл: upload-фаза в модалке, обработка — по WS-очереди (id из ответа)
+            uploadMedia(f, r.kind, desc, r.kind === 'photo' ? { dataUrl: r.dataUrl as string, exif: r.exif as { taken: string | null; gps: { lat: number; lon: number } | null } } : undefined, (pct) => {
+              if (upBarEl) { upBarEl.style.width = pct + '%'; upBarEl.textContent = pct + '%'; }
+            })
+              .then((rec) => {
+                const onQueue = (items: any[]) => {
+                  const it = items.find((x) => x.id === rec.id);
+                  if (!it) return;
+                  if (it.status === 'done') {
+                    mediaQueueListener = null;
+                    if (upBarEl) { upBarEl.style.width = '100%'; upBarEl.textContent = 'Готово'; }
+                    loadState();
+                    setTimeout(() => { document.querySelectorAll('.modal-overlay').forEach((x) => x.remove()); }, 500);
+                  } else if (it.status === 'error') {
+                    mediaQueueListener = null;
+                    if (upBarEl) upBarEl.textContent = 'Ошибка обработки';
+                  } else {
+                    if (upBarEl) { upBarEl.style.width = (it.pct || 0) + '%'; upBarEl.textContent = 'Обработка ' + (it.pct || 0) + '%'; }
+                  }
+                };
+                // Сначала проверить кеш (обработка могла завершиться до установки listener)
+                const cached = mediaQueueItems.find((x) => x.id === rec.id);
+                if (cached) onQueue(mediaQueueItems);
+                else mediaQueueListener = onQueue;
+              })
+              .catch((e) => { console.error('upload failed:', e); alert('Не удалось загрузить файл'); });
+          });
+        }).catch((e) => { console.error(e); alert('Не удалось обработать файл'); });
+        return;
+      }
+      // Несколько файлов: СНАЧАЛА загружаем все (upload-фаза, прогресс на кнопке и полосе),
+      // потом сервер обрабатывает список по очереди — панель «⏳ Обработка N/M» приходит по WS
+      // (и переживает перезагрузку страницы).
+      const total = files.length;
+      const orig = add.textContent;
+      let done = 0;
+      const chain = files.reduce((p, f) => {
+        const isVideo = f.type.startsWith('video/');
+        const ready: Promise<{ kind: 'photo' | 'video'; dataUrl?: string; exif?: { taken: string | null; gps: { lat: number; lon: number } | null } }> =
+          isVideo ? Promise.resolve({ kind: 'video' }) : processPhoto(f).then((r) => ({ kind: 'photo', dataUrl: r.dataUrl, exif: r.exif }));
+        return p.then(() => ready)
+          .then((r) => uploadMedia(f, r.kind, '', r.kind === 'photo' ? { dataUrl: r.dataUrl as string, exif: r.exif as { taken: string | null; gps: { lat: number; lon: number } | null } } : undefined, (pct) => {
+            add.textContent = '⏳ Загрузка ' + (done + 1) + '/' + total + ' · ' + pct + '%';
+          }))
+          .then(() => { done++; add.textContent = '⏳ Загрузка ' + done + '/' + total; });
+      }, Promise.resolve());
+      chain
+        .then(() => { add.textContent = orig; })
+        .catch((e) => { console.error('batch upload failed:', e); alert('Не удалось загрузить все файлы'); add.textContent = orig; });
+    });
+  });
+  append(grid, add);
+  for (const p of sorted) {
+    // ВНИМАНИЕ: нельзя вешать класс .av (display:none для шапки) — карточка галереи скроется
+    const item = el('div', { class: 'gal-item' });
+    if (p.type === 'video') {
+      // Видео-карточка: постер-превью + иконка ▶; при наведении играется (muted, аля ютьюб)
+      const v = el('video', { class: 'gal-video', src: '/api/photo/' + CHAT_ID + '/' + p.id, poster: '/api/photo/' + CHAT_ID + '/' + p.id + '?th=1', muted: true, playsinline: '', preload: 'metadata' }) as HTMLVideoElement;
+      v.addEventListener('mouseenter', () => { v.play().catch(() => { /* ок */ }); });
+      v.addEventListener('mouseleave', () => { v.pause(); v.currentTime = 0; });
+      append(item, v);
+      append(item, el('div', { class: 'gal-video-ico' }, '▶'));
+    } else {
+      append(item, el('img', { src: '/api/photo/' + CHAT_ID + '/' + p.id + '?th=1', alt: p.desc || '', loading: 'lazy', decoding: 'async' }));
+    }
+    const del = el('button', { class: 'gal-del', title: 'Удалить' }, '✕');
+    del.addEventListener('click', (evt: Event) => {
+      evt.stopPropagation();
+      if (!confirm('Удалить это фото?')) return;
+      const extra: any = { photos: [{ id: p.id, _delete: true }] };
+      if (S.avatar === p.id) extra.avatar = '';
+      saveState(extra);
+    });
+    append(item, del);
+    const cap = p.desc || (p.exif && p.exif.taken ? '📅 ' + fmtTaken(p.exif.taken).slice(0, 10) : '');
+    if (cap) append(item, el('div', { class: 'gal-cap' }, cap));
+    item.addEventListener('click', () => photoFullscreen(p));
+    append(grid, item);
+  }
+  append(c, grid);
+  if (!photos.length) {
+    append(c, el('div', { class: 'empty', style: 'padding:0 18px 18px' }, 'Фотографий пока нет. Добавьте первые — нажмите «Добавить фото».'));
+  }
+  renderMediaPanel();
+}
+
+function setupAvatar() {
+  const av = $('#av') as HTMLImageElement;
+  if (!av) return;
+  av.addEventListener('click', () => {
+    // Клик по аватарке — полноэкранный просмотр ТОЛЬКО этого фото (без листания по галерее)
+    const photo = (S.photos || []).find((p: any) => p.id === S.avatar);
+    if (photo) { photoFullscreen(photo, [photo]); return; }
+    // Аватарки нет — загрузка новой
+    pickPhotoFile((f) => {
+      uploadMedia(f, 'photo', '')
+        .then((p) => saveState({ avatar: p.id }))
+        .then(() => loadState())
+        .catch((e) => { console.error('avatar upload failed:', e); alert('Не удалось загрузить фото'); });
+    });
+  });
+}
+let weatherCache: { city: string; ts: number; data: any } | null = null;
+const WD_SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+function weatherCard(): HTMLElement | null {
+  const card = el('div', { class: 'card weather' });
+  const city = String(S.city || '').trim();
+  if (!city) {
+    append(card, el('div', { class: 'card-h' }, '🌤 Погода'));
+    append(card, el('div', { class: 'weather-hint' }, 'Скажите в чате, в каком вы городе — я подключу погоду на сегодня и на неделю.'));
+    return card;
+  }
+  const head = el('div', { class: 'card-h' }, '🌤 Погода · ' + city);
+  append(card, head);
+  const body = el('div', { class: 'weather-body' });
+  append(card, body);
+  const apply = (w: any) => {
+    clear(body);
+    const cur = w.current, today = w.daily?.[0];
+    const todayBox = el('div', { class: 'w-today' });
+    append(todayBox,
+      el('div', { class: 'w-now' }, el('span', { class: 'w-ico' }, cur.icon), el('span', { class: 'w-temp' }, cur.temp + '°')),
+      el('div', { class: 'w-cur' },
+        el('div', { class: 'w-desc' }, cur.desc),
+        el('div', { class: 'w-meta' },
+          'Ощущается ' + cur.feels + '° · Ветер ' + cur.wind + ' м/с · Влажность ' + cur.humidity + '%' + (cur.precip ? ' · Осадки ' + cur.precip + ' мм' : ''),
+          today ? el('div', { class: 'w-meta2' }, 'Днём ' + today.tmax + '°, ночью ' + today.tmin + '°' + (today.precipProb ? ' · Дождь ' + today.precipProb + '%' : '')) : null)));
+    append(body, todayBox);
+    const days = el('div', { class: 'w-days' });
+    for (const d of (w.daily || []).slice(1, 8)) {
+      const day = el('div', { class: 'w-day' });
+      const dt = new Date(d.date + 'T00:00:00');
+      append(day,
+        el('div', { class: 'w-dn' }, WD_SHORT[dt.getDay()]),
+        el('div', { class: 'w-di' }, d.icon),
+        el('div', { class: 'w-ddesc' }, d.desc),
+        el('div', { class: 'w-dt' }, d.tmin + '°…' + d.tmax + '°'),
+        el('div', { class: 'w-dp' }, d.precipProb ? '🌧 ' + d.precipProb + '%' : ''));
+      append(days, day);
+    }
+    append(body, days);
+  };
+  const cached = weatherCache && weatherCache.city === city && Date.now() - weatherCache.ts < 15 * 60 * 1000 ? weatherCache.data : null;
+  if (cached) { apply(cached); return card; }
+  append(body, el('div', { class: 'w-load' }, 'Загружаю погоду…'));
+  fetch('/api/weather?city=' + encodeURIComponent(city))
+    .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then((w) => { weatherCache = { city, ts: Date.now(), data: w }; apply(w); })
+    .catch(() => { clear(body); append(body, el('div', { class: 'w-load' }, 'Не удалось загрузить погоду для «' + city + '».')); });
+  return card;
+}
+const MODE_LABELS: Record<string, string> = {
+  feeding: 'Питание', likes: 'Любит', skills: 'Навыки', sleepPattern: 'Режим сна', sleep: 'Сон',
+  character: 'Характер', behavior: 'Поведение', temperament: 'Темперамент', routine: 'Режим дня', habits: 'Привычки',
+};
+function renderMode() {
+  const c = $('#c-mode'); if (!c) return; clear(c);
+  const d = S.details || {};
+  const keys = Object.keys(d).filter((k) => d[k] != null && String(d[k]).trim());
+  if (!keys.length) {
+    append(c, emptySection('Информация о режиме и привычках пока не заполнена.', 'Расскажите в чате про режим дня, питание и привычки ребёнка — я сохраню это здесь и буду учитывать в советах.'));
+    return;
+  }
+  for (const k of keys) {
+    const card = el('div', { class: 'card mode-card' });
+    append(card, el('div', { class: 'card-h' }, MODE_LABELS[k] || (k[0].toUpperCase() + k.slice(1))));
+    append(card, el('div', { class: 'mode-body' }, String(d[k])));
+    append(c, card);
+  }
+}
 function renderDash() {
   const c = $('#c-dash'); if (!c) return; clear(c);
   renderBanners(c);
@@ -1046,8 +1808,9 @@ function renderDash() {
     append(card, more);
     byKey.timeline = card;
   }
-  // Порядок на Главной: сводка → напоминания → хроника (на всю ширину) → профиль → задачи → навыки → план
-  const order = ['notice', 'summary', 'rems', 'timeline', 'profile', 'todos', 'skills', 'plan'];
+  // Порядок на Главной: сводка → напоминания → погода → хроника (на всю ширину) → профиль → задачи → навыки → план
+  const wc = weatherCard(); if (wc) byKey.weather = wc;
+  const order = ['notice', 'summary', 'rems', 'weather', 'timeline', 'profile', 'todos', 'skills', 'plan'];
   let anyCard = false;
   for (const k of order) {
     const x = byKey[k];
@@ -1235,7 +1998,7 @@ function renderSad() {
 function setupTabs() {
   const tb = $('#tb'); if (!tb) return;
   clear(tb);
-  const tabs = [['dash', 'Главная'], ['calendar', 'Календарь'], ['skills', 'Навыки'], ['tips', 'Советы'], ['recipes', 'Рецепты'], ['spurts', 'Скачки'], ['clothes', 'Гардероб'], ['sad', 'Сад'], ['shopping', 'Покупки'], ['stock', '📦 Запасы'], ['family', 'Семья'], ['budget', 'Бюджет'], ['llmn', 'Помощник']];
+  const tabs = [['dash', 'Главная'], ['mode', 'Режим'], ['photos', '📷 Галерея'], ['calendar', 'Календарь'], ['skills', 'Навыки'], ['tips', 'Советы'], ['recipes', 'Рецепты'], ['spurts', 'Скачки'], ['clothes', 'Гардероб'], ['sad', 'Сад'], ['shopping', 'Покупки'], ['stock', '📦 Запасы'], ['family', 'Семья'], ['budget', 'Бюджет'], ['llmn', 'Помощник']];
   // Динамические вкладки от LLM (персонализированные разделы: бизнес, хобби…)
   for (const t of S.tabs || []) {
     if (!t || !t.id || !t.title) continue;
@@ -1361,6 +2124,22 @@ function showMeasure() {
 function setupChat() {
   const me = $('#cm'), inp = $('#ci') as HTMLTextAreaElement, sb = $('#csd') as HTMLButtonElement;
   if (!me || !inp || !sb) return;
+  // Кнопки-варианты активны ТОЛЬКО у последнего вопроса: отвеченные/старые ряды гаснут
+  function refreshChoiceStates() {
+    const rows = Array.from(me.querySelectorAll('.msg-choices')) as HTMLElement[];
+    if (!rows.length) return;
+    const msgs = Array.from(me.querySelectorAll('.msg'));
+    const lastMsg = msgs[msgs.length - 1];
+    rows.forEach((row, i) => {
+      const active = i === rows.length - 1 && row.closest('.msg') === lastMsg;
+      row.classList.toggle('off', !active);
+      row.querySelectorAll('button').forEach((b) => { (b as HTMLButtonElement).disabled = !active; });
+    });
+  }
+  function disableRow(row: HTMLElement) {
+    row.classList.add('off');
+    row.querySelectorAll('button').forEach((b) => { (b as HTMLButtonElement).disabled = true; });
+  }
   function r(m: any) {
     const bub = el('div', { class: 'msg msg-' + m.role });
     append(bub, document.createTextNode(m.text || ''));
@@ -1383,6 +2162,10 @@ function setupChat() {
         done.addEventListener('click', () => {
           if (!picked.length) return;
           inp.value = 'Ответ: ' + picked.join(', '); sb.click();
+          // Сброс выбора после отправки — повторный клик не должен слать дубль
+          picked.length = 0;
+          for (const b of row.querySelectorAll('.msg-choice.sel')) b.classList.remove('sel');
+          disableRow(row);
         });
         append(row, done);
       } else {
@@ -1391,6 +2174,7 @@ function setupChat() {
           b.addEventListener('click', () => {
             if (/свой вариант/i.test(ch)) { inp.focus(); inp.placeholder = 'Ваш вариант...'; me.scrollTo({ top: me.scrollHeight }); return; }
             inp.value = 'Ответ: ' + ch; sb.click();
+            disableRow(row);
           });
           append(row, b);
         }
@@ -1400,9 +2184,9 @@ function setupChat() {
     return bub;
   }
   function sc() { me!.scrollTo({ top: me!.scrollHeight, behavior: 'smooth' }); }
-  const ms = window.PromptUI.messages.get(); for (const m of ms) { append(me, r(m)); } sc();
+  const ms = window.PromptUI.messages.get(); for (const m of ms) { append(me, r(m)); } refreshChoiceStates(); sc();
   let st: HTMLElement | null = null, stBuf = '';
-  window.PromptUI.messages.on('add', (m) => { if (st) { st.remove(); st = null; stBuf = ''; } append(me, r(m as any)); sc(); });
+  window.PromptUI.messages.on('add', (m) => { if (st) { st.remove(); st = null; stBuf = ''; } append(me, r(m as any)); refreshChoiceStates(); sc(); });
   window.PromptUI.messages.on('stream', (chunk) => {
     if (typeof chunk !== 'string') return;
     if (!chunk) { if (st) { st.remove(); st = null; stBuf = ''; } return; }
@@ -1458,11 +2242,67 @@ function setupChat() {
 
 setupTabs();
 setupActions();
+setupAvatar();
 setupChat();
 loadState();
+// Восстановить панель обработки после перезагрузки страницы (очередь живёт на сервере)
+fetch('/api/chat/' + CHAT_ID + '/media-queue?clientId=' + CID + '&clientSecret=' + SEC)
+  .then((r) => r.json())
+  .then((d) => { if (d && Array.isArray(d.items)) { mediaQueueItems = d.items; renderMediaPanel(); } })
+  .catch(() => { /* ок */ });
 window.__runtime_subscribe('/chat/state', (raw: string) => {
   try { const d = JSON.parse(raw); if (d.type === 'state' && d.state) { S = d.state; renderAll(); } } catch { /* ignore */ }
 });
+// ─── Очередь обработки медиа (конвертация идёт на сервере; UI переживает перезагрузку) ───
+let mediaQueueItems: any[] = [];
+let mediaQueueListener: ((items: any[]) => void) | null = null;
+
+window.__runtime_subscribe('/media-queue', (raw: string) => {
+  try {
+    const d = JSON.parse(raw);
+    if (d.type === 'queue' && Array.isArray(d.items)) {
+      const wasPending = mediaQueueItems.some((i) => i.status !== 'done' && i.status !== 'error');
+      mediaQueueItems = d.items;
+      const pending = mediaQueueItems.some((i) => i.status !== 'done' && i.status !== 'error');
+      if (mediaQueueListener) mediaQueueListener(d.items);
+      renderMediaPanel();
+      // Вся обработка завершилась — показать новые записи, панель убрать через пару секунд
+      if (wasPending && !pending) {
+        loadState();
+        setTimeout(() => { mediaQueueItems = []; renderMediaPanel(); }, 2500);
+      }
+    }
+  } catch { /* ignore */ }
+});
+
+/** Панель «⏳ Обработка N/M» в галерее (общий бар + список файлов со статусами). */
+function renderMediaPanel() {
+  const c = $('#c-photos'); if (!c) return;
+  const old = c.querySelector('.media-panel'); if (old) old.remove();
+  if (!mediaQueueItems.length) return;
+  const total = mediaQueueItems.length;
+  const doneN = mediaQueueItems.filter((i) => i.status === 'done').length;
+  const errN = mediaQueueItems.filter((i) => i.status === 'error').length;
+  const sumPct = mediaQueueItems.reduce((a: number, i) => a + (i.status === 'done' ? 100 : i.pct || 0), 0);
+  const panel = el('div', { class: 'media-panel' });
+  append(panel, el('div', { class: 'mp-title' }, '⏳ Обработка: ' + doneN + '/' + total + ' · ' + Math.round(sumPct / total) + '%'));
+  const pb = el('div', { class: 'up-wrap' });
+  append(pb, el('div', { class: 'up-bar', style: 'width:' + Math.round(sumPct / total) + '%' }));
+  append(panel, pb);
+  const list = el('div', { class: 'mp-list' });
+  for (const i of mediaQueueItems) {
+    const st = i.status === 'done' ? '✓' : i.status === 'processing' ? '⏳ ' + (i.pct || 0) + '%' : i.status === 'error' ? '✗' : '…';
+    append(list, el('div', { class: 'mp-row' + (i.status === 'done' ? ' ok' : i.status === 'error' ? ' err' : '') },
+      el('span', { class: 'mp-name' }, String(i.fileName || i.id)), el('span', { class: 'mp-st' }, st)));
+  }
+  append(panel, list);
+  if (errN) append(panel, el('div', { class: 'mp-title err' }, 'Ошибок: ' + errN));
+  // Панель — первая «карточка» сетки (ширина как у «Добавить фото», пропорции 3:4)
+  const grid = c.querySelector('.gal-grid');
+  if (grid && grid.firstChild) grid.insertBefore(panel, grid.firstChild);
+  else if (grid) grid.appendChild(panel);
+  else append(c, panel);
+}
 
 // ─── Календарь: месяц / неделя / день + UI-плашки ───
 const WD = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
@@ -1493,6 +2333,11 @@ function occursOn(ev: any, day: Date): boolean {
   if (!d || ev.done) return false;
   const diff = Math.round((startOfDay(day).getTime() - d.getTime()) / DAY_MS);
   if (diff < 0) return false;
+  // until: повторение прекращается после этой даты («по вторникам до конца августа»)
+  if (ev.until) {
+    const u = parseISO(ev.until);
+    if (u && day.getTime() > u.getTime()) return false;
+  }
   if (!ev.recurring) return diff === 0;
   if (ev.recurring === 'daily') return true;
   if (ev.recurring === 'weekly') return diff % 7 === 0;
@@ -1519,6 +2364,82 @@ function sortByTime(a: any, b: any): number { return (a.time || '99:99').localeC
 function calDelete(ev: any) {
   saveState({ calendar: [{ id: ev.id, title: ev.title, date: ev.date, time: ev.time, _delete: true }] });
 }
+/** Редактирование события календаря (в т.ч. повторяющегося): модалка с полями.
+ *  Сохранение = та же запись с тем же id и обновлёнными полями — серверный merge
+ *  обновляет по id (itemKey 'id:'), дубль не создаётся. */
+function calEditModal(e: any) {
+  // e == null → режим создания нового события (дата — текущий день)
+  const isNew = !e;
+  const f = {
+    title: String((e && e.title) || ''),
+    date: String((e && e.date) || iso(calCursor)),
+    time: String((e && e.time) || ''),
+    recurring: String((e && e.recurring) || ''),
+    until: String((e && e.until) || ''),
+    important: !!(e && e.important),
+    note: String((e && e.note) || ''),
+  };
+  let untilRow: HTMLElement;
+  // Защита от стака модалок (двойной клик) — старые закрываем
+  document.querySelectorAll('.modal-overlay').forEach((x) => x.remove());
+  modal(isNew ? 'Новое событие' : 'Редактировать событие', (b) => {
+    const ti = el('input', { type: 'text', class: 'modal-inp', value: f.title, placeholder: 'Название' }) as HTMLInputElement;
+    const di = el('input', { type: 'date', class: 'modal-inp', value: f.date }) as HTMLInputElement;
+    const tmi = el('input', { type: 'time', class: 'modal-inp', value: f.time }) as HTMLInputElement;
+    const recSel = el('select', { class: 'modal-inp' },
+      el('option', { value: '' }, 'Не повторяется'),
+      el('option', { value: 'daily' }, 'Каждый день'),
+      el('option', { value: 'weekly' }, 'Каждую неделю'),
+      el('option', { value: 'monthly' }, 'Каждый месяц'),
+      el('option', { value: 'yearly' }, 'Каждый год')) as HTMLSelectElement;
+    // el() ставит атрибут selected даже при false (всем опциям) — выставляем значение свойством
+    recSel.value = f.recurring || '';
+    const ui = el('input', { type: 'date', class: 'modal-inp', value: f.until }) as HTMLInputElement;
+    const impCb = el('input', { type: 'checkbox', checked: f.important }) as HTMLInputElement;
+    const imp = el('label', { style: 'display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0 12px;cursor:pointer' },
+      impCb, 'Важное событие ⭐');
+    const ni = el('input', { type: 'text', class: 'modal-inp', value: f.note, placeholder: 'Заметка (необязательно)' }) as HTMLInputElement;
+    const row = (l: string, elm: HTMLElement) => { const r = el('div', { class: 'form-row' }, el('span', { class: 'f-lbl' }, l), elm); append(b, r); return r; };
+    row('Название', ti);
+    row('Дата', di);
+    row('Время', tmi);
+    row('Повторение', recSel);
+    untilRow = row('Повторять до', ui);
+    append(b, imp, ni);
+    const syncUntil = () => { untilRow.style.display = recSel.value ? '' : 'none'; };
+    recSel.addEventListener('change', syncUntil); syncUntil();
+    // Значения живут в замыкании f — onSave читает их без хаков
+    ti.addEventListener('input', () => { f.title = ti.value; });
+    di.addEventListener('input', () => { f.date = di.value; });
+    tmi.addEventListener('input', () => { f.time = tmi.value; });
+    recSel.addEventListener('change', () => { f.recurring = recSel.value; syncUntil(); });
+    ui.addEventListener('input', () => { f.until = ui.value; });
+    impCb.addEventListener('change', () => { f.important = impCb.checked; });
+    ni.addEventListener('input', () => { f.note = ni.value; });
+    const del = el('button', { class: 'modal-btn danger' }, 'Удалить событие');
+    del.addEventListener('click', () => {
+      if (!confirm('Удалить это событие?')) return;
+      calDelete(e);
+      document.querySelector('.modal-overlay')?.remove();
+    });
+    if (!isNew) append(b, el('div', { style: 'text-align:center;padding-top:12px' }, del));
+  }, () => {
+    const upd: Record<string, unknown> = isNew ? { id: newCalId() } : { ...e };
+    upd.title = f.title.trim() || 'Без названия';
+    upd.date = f.date || (e ? e.date : iso(calCursor));
+    upd.time = f.time || null;
+    upd.recurring = f.recurring || null;
+    upd.until = f.recurring ? f.until || null : null;
+    upd.important = f.important;
+    upd.note = f.note.trim() || null;
+    if (upd.time == null) delete upd.time;
+    if (upd.until == null) delete upd.until;
+    saveState({ calendar: [upd] });
+  });
+}
+function newCalId(): string {
+  return 'ev' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
 function calItemEl(e: any): HTMLElement {
   const it = el('div', { class: 'cal-item' + (e.important ? ' imp' : ''), 'data-tip': (e.time ? e.time + ' ' : '') + e.title + (e.recurring ? ' · повторяется' : '') + (e.important ? ' · важно' : '') + (e.note ? ' — ' + e.note : '') });
   const row = el('div', { class: 't' });
@@ -1528,6 +2449,7 @@ function calItemEl(e: any): HTMLElement {
   append(row, del);
   append(it, row);
   if (e.note) append(it, el('div', {}, e.note));
+  it.addEventListener('click', () => calEditModal(e));
   return it;
 }
 
@@ -1593,11 +2515,52 @@ function renderCalendar() {
   else if (calView === 'week') renderCalWeek(c);
   else renderCalDay(c);
 }
+/** Фото по дням съёмки (exif.taken 'YYYY:MM:DD HH:MM:SS' → 'YYYY-MM-DD') */
+function dayPhotosMap(): Map<string, any[]> {
+  const map = new Map<string, any[]>();
+  for (const p of (S.photos || [])) {
+    const taken = p && p.exif && typeof p.exif.taken === 'string' ? p.exif.taken : '';
+    const m = taken.match(/^(\d{4}):(\d{2}):(\d{2})/);
+    if (!m) continue;
+    const key = m[1] + '-' + m[2] + '-' + m[3];
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(p);
+  }
+  return map;
+}
+
+/** Медиа-подложка календаря: фото — превью, видео — постер (первый кадр) + иконка ▶ */
+function calMediaEl(p: any): HTMLElement {
+  const src = '/api/photo/' + CHAT_ID + '/' + p.id;
+  if (p.type === 'video') {
+    const w = el('span', { class: 'cal-phwrap-inner' });
+    append(w, el('video', { class: 'cal-ph', src, poster: src + '?th=1', muted: true, playsinline: '', preload: 'metadata' }));
+    append(w, el('span', { class: 'cal-video-ico' }, '▶'));
+    return w;
+  }
+  return el('img', { class: 'cal-ph', src: src + '?th=1', alt: '', decoding: 'async' });
+}
+
+/** mousemove-зоны: область host делится по горизонтали на столько частей, сколько фото дня;
+ *  наведение на k-ю зону показывает k-е фото. ph — img или video. */
+function attachCalPhotoZones(host: HTMLElement, ph: HTMLElement, dayPhotos: any[]) {
+  if (dayPhotos.length < 2) return;
+  host.addEventListener('mousemove', (e: MouseEvent) => {
+    const r = host.getBoundingClientRect();
+    if (r.width <= 0) return;
+    const zone = Math.min(dayPhotos.length - 1, Math.floor(((e.clientX - r.left) / r.width) * dayPhotos.length));
+    const next = dayPhotos[zone];
+    const target = '/api/photo/' + CHAT_ID + '/' + next.id;
+    if ((ph as any).getAttribute('src') !== target) (ph as any).src = target;
+  });
+}
+
 function renderCalMonth(c: HTMLElement) {
   const first = new Date(calCursor.getFullYear(), calCursor.getMonth(), 1);
   const start = new Date(first);
   start.setDate(first.getDate() - ((first.getDay() + 6) % 7)); // неделя с понедельника
   const todayIso = iso(new Date());
+  const photosByDay = dayPhotosMap();
   const grid = el('div', { class: 'cal-grid' });
   for (const w of WD) append(grid, el('div', { class: 'cal-dow' }, w));
   for (let i = 0; i < 42; i++) {
@@ -1606,14 +2569,28 @@ function renderCalMonth(c: HTMLElement) {
     const cell = el('div', {
       class: 'cal-cell' + (d.getMonth() !== calCursor.getMonth() ? ' other' : '') + (iso(d) === todayIso ? ' today' : ''),
     });
+    // Медиа дня — подложка; mousemove по горизонтальным зонам листает медиа дня
+    const dayPhotos = photosByDay.get(iso(d)) || [];
+    if (dayPhotos.length) {
+      const ph = calMediaEl(dayPhotos[0]);
+      attachCalPhotoZones(cell, ph, dayPhotos);
+      append(cell, ph);
+      if (dayPhotos[0].type === 'video') append(cell, el('span', { class: 'cal-video-ico' }, '▶'));
+      append(cell, el('div', { class: 'cal-phcnt', title: 'Фото за этот день: ' + dayPhotos.length }, '📷 ' + dayPhotos.length));
+    }
     append(cell, el('div', { class: 'cal-num' }, String(d.getDate())));
+    // События — снизу ячейки, поверх фото
+    const evsWrap = el('div', { class: 'cal-evs' });
     for (const e of evs.slice(0, 3)) {
-      append(cell, el('div', {
+      const evEl = el('div', {
         class: 'cal-ev' + (e.important ? ' imp' : '') + (e.recurring ? ' rec' : '') + (e.done ? ' done' : ''),
         'data-tip': (e.time ? e.time + ' ' : '') + e.title + (e.recurring ? ' · повторяется' : '') + (e.important ? ' · важно' : '') + (e.note ? ' — ' + e.note : ''),
-      }, (e.time ? e.time + ' ' : '') + e.title));
+      }, (e.time ? e.time + ' ' : '') + e.title);
+      evEl.addEventListener('click', (evt: Event) => { evt.stopPropagation(); calEditModal(e); });
+      append(evsWrap, evEl);
     }
-    if (evs.length > 3) append(cell, el('div', { class: 'cal-more' }, '+' + (evs.length - 3)));
+    if (evs.length > 3) append(evsWrap, el('div', { class: 'cal-more' }, '+' + (evs.length - 3)));
+    if (evs.length) append(cell, evsWrap);
     cell.addEventListener('click', () => { calView = 'day'; calCursor = d; renderCalendar(); });
     append(grid, cell);
   }
@@ -1623,15 +2600,28 @@ function renderCalWeek(c: HTMLElement) {
   const monday = startOfDay(calCursor);
   monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
   const todayIso = iso(new Date());
+  const photosByDay = dayPhotosMap();
   const wk = el('div', { class: 'cal-week' });
   for (let i = 0; i < 7; i++) {
     const d = new Date(monday.getTime() + i * DAY_MS);
     const evs = calEvents().filter((e: any) => occursOn(e, d)).sort(sortByTime);
     const col = el('div', { class: 'cal-daycol' + (iso(d) === todayIso ? ' today' : '') });
     append(col, el('h4', {}, WD[i] + ' ' + fmtDay(d)));
+    // Медиа дня — превью 3:4 с mousemove-зонами (как в месячном виде);
+    // клик ничем не перехватывается — колонка проваливает в дневной вид
+    const dayPhotos = photosByDay.get(iso(d)) || [];
+    if (dayPhotos.length) {
+      const phWrap = el('div', { class: 'cal-phwrap', title: 'Фото за этот день: ' + dayPhotos.length });
+      const ph = calMediaEl(dayPhotos[0]);
+      attachCalPhotoZones(phWrap, ph, dayPhotos);
+      append(phWrap, ph);
+      if (dayPhotos[0].type === 'video') append(phWrap, el('span', { class: 'cal-video-ico' }, '▶'));
+      append(col, phWrap);
+    }
     const list = el('div', { class: 'cal-list' });
     for (const e of evs) append(list, calItemEl(e));
     append(col, list);
+    col.addEventListener('click', () => { calView = 'day'; calCursor = d; renderCalendar(); });
     append(wk, col);
   }
   append(c, wk);
@@ -1640,7 +2630,41 @@ function renderCalDay(c: HTMLElement) {
   const d = startOfDay(calCursor);
   const evs = calEvents().filter((e: any) => occursOn(e, d)).sort(sortByTime);
   const card = el('div', { class: 'card' });
-  append(card, el('div', { class: 'card-h' }, fmtDayFull(d) + (iso(d) === iso(new Date()) ? ' · сегодня' : '')));
+  const head = el('div', { class: 'card-h' });
+  append(head, el('span', {}, fmtDayFull(d) + (iso(d) === iso(new Date()) ? ' · сегодня' : '')));
+  const addEv = el('button', { class: 'cal-add-ev', title: 'Добавить событие' }, '+ Событие');
+  addEv.addEventListener('click', () => { calEditModal(null); });
+  append(head, addEv);
+  append(card, head);
+  // Мини-галерея фото дня — сразу под заголовком; клик — полноэкранный просмотр.
+  // Порядок — хронологический (время съёмки), листание ◀▶ идёт только по фото дня.
+  const dayPhotos = (dayPhotosMap().get(iso(d)) || []).slice()
+    .sort((a, b) => {
+      const ta = a && a.exif && typeof a.exif.taken === 'string' ? a.exif.taken : '';
+      const tb = b && b.exif && typeof b.exif.taken === 'string' ? b.exif.taken : '';
+      if (ta < tb) return -1; if (ta > tb) return 1; return 0;
+    });
+  if (dayPhotos.length) {
+    const gal = el('div', { class: 'cal-dgal' });
+    for (const p of dayPhotos) {
+      const taken = p && p.exif && typeof p.exif.taken === 'string' ? p.exif.taken : '';
+      const tm = taken.match(/^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2})/);
+      const tip = (tm ? '🕐 ' + tm[4] + ':' + tm[5] : '') + (p.duration ? ' · ⏱ ' + fmtDur(p.duration) : '') + (p.desc ? ' — ' + p.desc : '') || 'Фото';
+      const t = el('div', { class: 'cal-dgal-item' + (p.type === 'video' ? ' vid' : ''), 'data-tip': tip });
+      if (p.type === 'video') {
+        const v = el('video', { class: 'cal-dgal-video', src: '/api/photo/' + CHAT_ID + '/' + p.id, poster: '/api/photo/' + CHAT_ID + '/' + p.id + '?th=1', muted: true, playsinline: '', preload: 'metadata' }) as HTMLVideoElement;
+        v.addEventListener('mouseenter', () => { v.play().catch(() => { /* ок */ }); });
+        v.addEventListener('mouseleave', () => { v.pause(); v.currentTime = 0; });
+        append(t, v);
+        append(t, el('span', { class: 'cal-video-ico' }, '▶'));
+      } else {
+        append(t, el('img', { src: '/api/photo/' + CHAT_ID + '/' + p.id + '?th=1', alt: p.desc || '', loading: 'lazy', decoding: 'async' }));
+      }
+      t.addEventListener('click', () => photoFullscreen(p, dayPhotos));
+      append(gal, t);
+    }
+    append(card, gal);
+  }
   if (!evs.length) {
     append(card, el('div', { class: 'empty', style: 'padding:12px' }, 'На этот день событий нет. Напишите в чат — запишу.'));
   }
