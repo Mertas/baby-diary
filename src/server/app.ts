@@ -251,15 +251,29 @@ app.get('/api/chat/:id/state', requireClient, (req, res) => {
   res.json(getState(req.params.id));
 });
 
-// Погода (Open-Meteo, без ключа): ?city=Москва — геокодинг + текущая погода + 8 дней
-app.get('/api/weather', requireClient, async (req, res) => {
+// Погода (Open-Meteo, без ключа): ?city=Москва — геокодинг + текущая погода + 8 дней.
+// Открытый endpoint (город + прогноз — публичные данные, персонального нет), но с rate-limit,
+// чтобы нельзя было бесконечно долбить внешний API через сервер.
+const weatherHits = new Map<string, { n: number; ts: number }>();
+const WEATHER_RATE_LIMIT = 60; // запросов в минуту на IP
+app.get('/api/weather', (req, res) => {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  // Периодическая очистка устаревших счётчиков (Map не должен расти вечно)
+  if (weatherHits.size > 2000) {
+    for (const [k, v] of weatherHits) if (now - v.ts > 60000) weatherHits.delete(k);
+  }
+  const hit = weatherHits.get(ip);
+  if (!hit || now - hit.ts > 60000) weatherHits.set(ip, { n: 1, ts: now });
+  else {
+    hit.n++;
+    if (hit.n > WEATHER_RATE_LIMIT) return res.status(429).json({ error: 'too many requests' });
+  }
   const city = String(req.query.city || '').trim();
   if (!city) return res.status(400).json({ error: 'city required' });
-  try {
-    res.json(await getWeather(city));
-  } catch (e) {
-    res.status(404).json({ error: String((e as Error).message || e) });
-  }
+  getWeather(city)
+    .then((w) => res.json(w))
+    .catch((e) => res.status(404).json({ error: String((e as Error).message || e) }));
 });
 
 app.post('/api/chat/:id/state', requireClient, (req, res) => {
