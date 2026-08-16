@@ -3,6 +3,7 @@ export {}; // внешний модуль (для typecheck: изолирова�
 import { renderCalendar } from './calendar.js';
 import { renderPhotos, setupAvatar, renderMediaPanel, setMediaQueue, mediaQueueItems, mediaQueueListener } from './gallery.js';
 import { renderMode, renderDash, renderSkills, renderTips, renderRecipes, renderSpurts, renderClothes, renderSad, renderShopping, renderStock, renderLlmn, renderFamily, renderBudget, renderDynTabs, setupTabs, setupActions } from './tabs.js';
+import type { BabyState } from '../shared/types.js';
 export const { el, $, $$, on, append, clear } = window.PromptUI;
 
 window.PromptUI.ui.set(`
@@ -473,7 +474,7 @@ window.PromptUI.ui.activateScripts(document.body);
 export const CHAT_ID = window.__CHAT_ID__;
 export const CID = localStorage.getItem('pui2_clientId_' + CHAT_ID) || '';
 export const SEC = localStorage.getItem('pui2_secret_' + CHAT_ID) || '';
-export let S: any = {};
+export let S: BabyState = {};
 /** URL медиа — без креденшелов в query: HttpOnly-кука bd ставится сервером при первом
  *  аутентифицированном запросе (loadState), <img>/<video> ходят по ней. */
 export function phUrl(id: string, thumb = false): string {
