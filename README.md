@@ -15,6 +15,13 @@ npm run dev          # сборка клиента + tsx watch сервера
 
 Требования: Node 18+, [ffmpeg](https://ffmpeg.org) в PATH (конвертация MOV→MP4 и превью; фото работают и без него).
 
+> ⚠️ **Версия Node.** `better-sqlite3` — нативный модуль, собранный под конкретную версию Node (ABI). Если в системе несколько Node (например, nvm) и при установке/запуске используются разные — будет ошибка `NODE_MODULE_VERSION`. Используйте **одну и ту же версию Node** для `npm install` и `npm run dev`. При смене версии Node пересоберите модуль:
+> ```bash
+> npm rebuild better-sqlite3
+> # или скачать предсобранный бинарник без компилятора:
+> node node_modules/prebuild-install/bin.js --directory node_modules/better-sqlite3
+> ```
+
 ## Как это устроено
 
 - **LLM управляет данными**: вся бизнес-логика дневника описана в [`baby-diary-prompt.md`](baby-diary-prompt.md) (57 КБ системного промпта). Модель возвращает JSON `{"text": ..., "state": {...}, "choices": [...]}`.
