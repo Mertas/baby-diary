@@ -53,7 +53,7 @@ npm run dev          # сборка клиента + tsx watch сервера
 - `POST /api/chat/:id/media` — бинарная загрузка фото/видео (очередь обработки, прогресс WS `/media-queue`); `GET /api/photo/:chatId/:id[?th=1]` — стрим с Range (перемотка видео)
 - `GET /api/chat/:id/export` — zip-архив дневника (state.json без GPS + все фото/видео); в шапке — кнопка ⬇
 - `POST /api/chat/:id/invite` → `GET /api/join/:token` — одноразовое приглашение для члена семьи (🔗 в шапке)
-- `GET /api/weather?city=...` — погода Open-Meteo (без ключа, кэш 30 мин)
+- `GET /api/weather?city=...` — погода Open-Meteo (без ключа, кэш 30 мин; endpoint публичный, rate-limit 60/мин на IP)
 - `PATCH /api/chats/:id` — переименование дневника (✎ в списке)
 
 ## Данные
