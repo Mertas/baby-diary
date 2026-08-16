@@ -9,6 +9,7 @@ import { getState, saveState, mergeState, sanitizeStateEvents } from './state.js
 import { requireClient, checkClient } from './auth.js';
 import { getWeather } from './weather.js';
 import { savePhoto, mediaFileInfo, prunePhotos, ingestMedia, queueFor, trimQueue, chatPhotoDir, restoreMediaQueue } from './photos.js';
+import { exportChatZip, dailyBackup } from './backup.js';
 import { v4 as uuid } from 'uuid';
 import type { LlmMessage, ChatPreview } from '../db/schema.js';
 import { readFileSync, existsSync, mkdirSync, writeFileSync, unlinkSync, cpSync, rmSync, createReadStream } from 'fs';
@@ -351,6 +352,19 @@ app.post('/api/chat/:id/media', requireClient, (req, res) => {
   });
 });
 
+// Скачивание архива дневника: state.json (без GPS) + все фото/видео — единым zip
+app.get('/api/chat/:id/export', requireClient, (req, res) => {
+  const chatId = req.params.id;
+  try {
+    const zip = exportChatZip(chatId);
+    res.set('Content-Type', 'application/zip');
+    res.set('Content-Disposition', `attachment; filename="babydiary-${chatId.slice(0, 8)}.zip"`);
+    res.send(zip);
+  } catch (e) {
+    res.status(500).json({ error: String((e as Error).message || e) });
+  }
+});
+
 // Текущая очередь обработки (для восстановления UI после перезагрузки страницы)
 app.get('/api/chat/:id/media-queue', requireClient, (req, res) => {
   const chatId = req.params.id;
@@ -426,8 +440,21 @@ server.listen(PORT, () => {
   rotateLogs();
   // llm_logs (полные промпты+ответы) растут мегабайтами — чистим ещё и по расписанию, не только при старте
   setInterval(rotateLogs, 3600 * 1000).unref();
+  // После удаления старых логов файл БД не уменьшается без VACUUM — делаем один раз при старте
+  setTimeout(() => {
+    try { const before = fileSize(getDb()); getDb().pragma('wal_checkpoint(TRUNCATE)'); getDb().exec('VACUUM'); console.log(`[db] vacuumed (${before} → ${fileSize(getDb())} bytes)`); }
+    catch (e) { console.error('[db] vacuum failed:', e); }
+  }, 2000).unref();
+  // Авто-бэкап на диск: сразу при старте и далее раз в сутки (data/backups/<дата>/)
+  dailyBackup();
+  setInterval(dailyBackup, 24 * 3600 * 1000).unref();
 });
 process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);
+
+function fileSize(db: unknown): number {
+  try { return (db as { pragma: (p: string, o?: object) => unknown }).pragma('page_count', { simple: true }) as number * 4096; }
+  catch { return 0; }
+}
 
 /** Удалить старые записи llm_logs (14 дней — компактный период для отладки). */
 function rotateLogs(): void {
@@ -437,7 +464,6 @@ function rotateLogs(): void {
     if (changes > 0) console.log(`[logs] cleaned ${changes} old llm_logs rows`);
   } catch (e) { console.error('[logs] rotation failed:', e); }
 }
-process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);
 
 function shutdown() {
   console.log('\nShutting down...');

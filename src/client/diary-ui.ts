@@ -24,6 +24,8 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 
 .brand { text-align: center; padding: 22px 16px 6px; flex-shrink: 0; }
 .brand .mark { font-family: var(--serif); font-size: 11px; letter-spacing: 0.45em; text-transform: uppercase; color: var(--text-soft); }
+.exp-btn { margin-left: 8px; background: none; border: 1px solid var(--border); border-radius: 3px; color: var(--text-soft); cursor: pointer; font-size: 11px; padding: 1px 6px; vertical-align: 1px; transition: all .2s; }
+.exp-btn:hover { color: var(--accent); border-color: var(--accent); }
 .brand-row { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 6px; }
 .brand-info { min-width: 0; }
 .name-row { display: flex; align-items: baseline; justify-content: center; gap: 12px; flex-wrap: wrap; }
@@ -434,7 +436,7 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 </style>
 <div id="app">
   <div class="brand">
-    <div class="mark">Baby Diary</div>
+    <div class="mark">Baby Diary <button id="exp" class="exp-btn" title="Скачать архив дневника (state.json + фото)">⬇</button></div>
     <div class="brand-row">
       <div class="brand-info">
         <div class="name-row"><span class="name" id="nm">—</span><span class="meta" id="mt"></span></div>
@@ -861,6 +863,20 @@ setupActions();
 setupAvatar();
 setupChat();
 loadState();
+// Скачать архив дневника (state.json + фото/видео одним zip)
+const expBtn = $('#exp');
+if (expBtn) expBtn.addEventListener('click', () => {
+  fetch('/api/chat/' + CHAT_ID + '/export')
+    .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
+    .then((blob) => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'babydiary-' + CHAT_ID.slice(0, 8) + '.zip';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    })
+    .catch((e) => { console.error('export failed:', e); alert('Не удалось скачать архив'); });
+});
 // Восстановить панель обработки после перезагрузки страницы (очередь живёт на сервере)
 fetch('/api/chat/' + CHAT_ID + '/media-queue?clientId=' + CID + '&clientSecret=' + SEC)
   .then((r) => r.json())
