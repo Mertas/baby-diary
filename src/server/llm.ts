@@ -247,7 +247,7 @@ async function fillEmptySections(chatId: string, merged: Record<string, unknown>
   const needSkills = skillsEmpty && attempts >= 2;
   const needSpurts = (!Array.isArray(s.spurts) || s.spurts.length === 0) && !isNaN(ageWeeks) && ageWeeks >= 5 && ageWeeks <= 26;
   const cal = Array.isArray(s.calendar) ? s.calendar : [];
-  const hasMed = cal.some((c: any) => /[💉🩺⚕️🎂]/.test(String(c.title || '')));
+  const hasMed = cal.some((c: any) => ['💉', '🩺', '⚕️', '🎂'].some((e) => String(c.title || '').includes(e)));
   const needCal = !hasMed && !isNaN(ageDays) && ageDays <= 730;
   const needBlurb = !s.blurb && !!s.name;
   if (!needSkills && !needSpurts && !needCal && !needBlurb) return;

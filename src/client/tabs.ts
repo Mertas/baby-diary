@@ -454,7 +454,7 @@ export function renderDash() {
     const nowD = new Date(todayRef()); nowD.setHours(0, 0, 0, 0);
     const daySet = new Set<string>();
     for (const it of all) daySet.add(dayKey(it.e.timestamp));
-    let dayKeys = [...daySet].sort((a, b) => (a < b ? 1 : -1)).slice(0, htlDays);
+    const dayKeys = [...daySet].sort((a, b) => (a < b ? 1 : -1)).slice(0, htlDays);
     if (dayKeys.length < htlDays) {
       // дополнить календарными днями перед самым старым днём с событием
       const oldest = dayKeys.length ? dayKeys[dayKeys.length - 1] : iso(nowD);
@@ -757,19 +757,18 @@ function showFeed() {
     const btns = el('div', { class: 'modal-btns' });
     const ts = ['грудное', 'смесь', 'прикорм'], ls = ['Грудное', 'Смесь', 'Прикорм'];
     const be: HTMLElement[] = [];
-    let qty: HTMLElement, pres: HTMLElement;
+    const qty = el('div', { class: 'modal-qty' }, el('button', {}, '−'), el('span', {}, '0 мл'), el('button', {}, '+'));
+    const sp = qty.querySelector('span')!;
+    const setAm = (v: number) => { am = Math.max(0, v); sp.textContent = am + ' мл'; };
+    (qty.querySelectorAll('button')[0] as HTMLElement).addEventListener('click', () => setAm(am - 10));
+    (qty.querySelectorAll('button')[1] as HTMLElement).addEventListener('click', () => setAm(am + 10));
+    const pres = el('div', { class: 'modal-pres' });
     const sync = () => { const show = ty !== 'грудное'; qty.style.display = show ? 'flex' : 'none'; pres.style.display = show ? 'flex' : 'none'; };
     for (let i = 0; i < ts.length; i++) {
       const btn = el('button', { class: 'modal-btn' + (ts[i] === ty ? ' sel' : '') }, ls[i]);
       btn.addEventListener('click', () => { be.forEach(x => x.classList.remove('sel')); btn.classList.add('sel'); ty = ts[i]; sync(); });
       append(btns, btn); be.push(btn);
     }
-    qty = el('div', { class: 'modal-qty' }, el('button', {}, '−'), el('span', {}, '0 мл'), el('button', {}, '+'));
-    const sp = qty.querySelector('span')!;
-    const setAm = (v: number) => { am = Math.max(0, v); sp.textContent = am + ' мл'; };
-    (qty.querySelectorAll('button')[0] as HTMLElement).addEventListener('click', () => setAm(am - 10));
-    (qty.querySelectorAll('button')[1] as HTMLElement).addEventListener('click', () => setAm(am + 10));
-    pres = el('div', { class: 'modal-pres' });
     for (const v of [30, 60, 90, 120, 150]) {
       const p = el('button', { class: 'modal-btn' }, v + ' мл');
       p.addEventListener('click', () => setAm(v));

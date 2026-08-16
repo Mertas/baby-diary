@@ -157,7 +157,7 @@ export function eventKey(o: Record<string, unknown>): string {
 export function extractMomDay(text: string): number | undefined {
   // «сегодня 20.07» / «сегодня 20.07.2026» / «сегодня 20 июля» / «сегодня 10 августа» — день мамы
   const MONTHS: Record<string, number> = { 'января': 1, 'февраля': 2, 'марта': 3, 'апреля': 4, 'мая': 5, 'июня': 6, 'июля': 7, 'августа': 8, 'сентября': 9, 'октября': 10, 'ноября': 11, 'декабря': 12 };
-  const m = text.match(/сегодня\s+(\d{1,2})[.\/](\d{1,2})(?:[.\/](\d{2,4}))?/i);
+  const m = text.match(/сегодня\s+(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?/i);
   if (m) {
     const day = parseInt(m[1], 10), mon = parseInt(m[2], 10);
     if (mon >= 1 && mon <= 12 && day >= 1 && day <= 31) {
