@@ -155,6 +155,10 @@ app.post('/chat/:id/undo', (req, res) => {
       try {
         const restored = JSON.parse(lastAgent.prev_state) as Record<string, unknown>;
         saveState(chatId, restored);
+        // Убрать файлы фото, которых больше нет в откаченном state (иначе осиротеют на диске)
+        if (Array.isArray(restored.photos)) {
+          prunePhotos(chatId, new Set<string>(restored.photos.map((p: any) => String(p.id || ''))));
+        }
         broadcast(chatId, '/chat/state', JSON.stringify({ path: '/chat/state', type: 'state', state: restored }));
       } catch { /* битый снапшот — state не трогаем */ }
     }
@@ -195,6 +199,17 @@ app.delete('/api/chats/:id', (req, res) => {
   if (existsSync(dir)) { try { rmSync(dir, { recursive: true, force: true }); } catch { /* ок */ } }
   queueFor(chatId).length = 0;
   res.json({ status: 'deleted' });
+});
+
+// Переименование дневника (два «Baby Diary» в списке не отличить — имя ребёнка как title)
+app.patch('/api/chats/:id', (req, res) => {
+  const chatId = req.params.id;
+  if (!checkClient(req, chatId)) return res.status(401).json({ error: 'Invalid credentials' });
+  const { title } = req.body;
+  const t = typeof title === 'string' && title.trim() ? title.trim().slice(0, 80) : '';
+  if (!t) return res.status(400).json({ error: 'Title required' });
+  getDb().prepare('UPDATE chats SET title = ? WHERE id = ?').run(t, chatId);
+  res.json({ status: 'ok', title: t });
 });
 
 // ─── API: Baby state (persistent app data) ──────────────────

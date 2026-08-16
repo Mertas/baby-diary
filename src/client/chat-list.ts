@@ -24,6 +24,8 @@ interface ChatPreview {
       .chat-card:hover { background: #f2ede4; }
       .chat-del { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: 1px solid #e3ddd3; color: #a39a8d; cursor: pointer; width: 26px; height: 26px; border-radius: 2px; font-size: 11px; line-height: 1; transition: all .2s; }
       .chat-del:hover { color: #c0392b; border-color: #c0392b; }
+      .chat-ren { position: absolute; right: 44px; top: 50%; transform: translateY(-50%); background: none; border: 1px solid #e3ddd3; color: #a39a8d; cursor: pointer; width: 26px; height: 26px; border-radius: 2px; font-size: 11px; line-height: 1; transition: all .2s; }
+      .chat-ren:hover { color: #e8622a; border-color: #e8622a; }
       .chat-title { font-weight: 500; margin-bottom: 3px; font-size: 15px; }
       .chat-preview { font-size: 13px; color: #7a7268; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .chat-meta { display: flex; gap: 16px; margin-top: 6px; font-size: 11px; color: #a39a8d; letter-spacing: 0.04em; }
@@ -53,7 +55,7 @@ interface ChatPreview {
           <span>${c.messageCount} сообщений</span>
           <span>${ago(c.updatedAt)}</span>
         </div>
-        ${hasCreds ? `<button class="chat-del" title="Удалить дневник">✕</button>` : ''}
+        ${hasCreds ? `<button class="chat-del" title="Удалить дневник">✕</button><button class="chat-ren" title="Переименовать">✎</button>` : ''}
       `;
       if (hasCreds) {
         card.querySelector('.chat-del')!.addEventListener('click', async (e) => {
@@ -65,6 +67,17 @@ interface ChatPreview {
             body: JSON.stringify({ clientId: localStorage.getItem(`pui2_clientId_${c.id}`), clientSecret: localStorage.getItem(`pui2_secret_${c.id}`) }),
           });
           card.remove();
+        });
+        card.querySelector('.chat-ren')!.addEventListener('click', async (e) => {
+          e.preventDefault(); e.stopPropagation();
+          const title = prompt('Название дневника (имя ребёнка):', c.title);
+          if (title === null || !title.trim()) return;
+          const res = await fetch(`/api/chats/${c.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clientId: localStorage.getItem(`pui2_clientId_${c.id}`), clientSecret: localStorage.getItem(`pui2_secret_${c.id}`), title: title.trim() }),
+          });
+          if (res.ok) { card.querySelector('.chat-title')!.textContent = title.trim(); c.title = title.trim(); }
         });
       }
       list.appendChild(card);
