@@ -1,5 +1,5 @@
 // Хранение фото/видео галереи: файлы на диске (id.jpg / id.mp4), метаданные — в state (photos/avatar).
-import { mkdirSync, writeFileSync, readFileSync, unlinkSync, existsSync, readdirSync } from 'fs';
+import { mkdirSync, writeFileSync, readFileSync, unlinkSync, existsSync, readdirSync, statSync } from 'fs';
 import { resolve, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
@@ -36,24 +36,20 @@ function makeThumb(src: string, out: string, video: boolean): Promise<void> {
   return run('ffmpeg', args);
 }
 
-/** Читать медиа (фото .jpg или видео .mp4) или его превью (<id>.th.jpg). */
-export function readMedia(chatId: string, id: string, thumb = false): { buf: Buffer; mime: string } | null {
+/** Найти файл медиа (фото .jpg или видео .mp4) или его превью (<id>.th.jpg) и вернуть
+ *  путь+размер+mime БЕЗ чтения в память — отдачу делаем стримом с Range (видео).
+ *  Fallback для превью: медиа, загруженные ДО появления превью, отдаём оригиналом-фото. */
+export function mediaFileInfo(chatId: string, id: string, thumb = false): { path: string; size: number; mime: string } | null {
   if (!safeId(chatId) || !safeId(id)) return null;
   if (thumb) {
-    try {
-      const p = join(chatPhotoDir(chatId), id + '.th.jpg');
-      if (existsSync(p)) return { buf: readFileSync(p), mime: 'image/jpeg' };
-    } catch { /* нет файла */ }
-    // Fallback для медиа, загруженных ДО появления превью: отдать оригинал-фото
-    try {
-      const p = mediaPath(chatId, id, 'jpg');
-      if (existsSync(p)) return { buf: readFileSync(p), mime: 'image/jpeg' };
-    } catch { /* нет файла */ }
+    for (const p of [join(chatPhotoDir(chatId), id + '.th.jpg'), mediaPath(chatId, id, 'jpg')]) {
+      try { const st = statSync(p); if (st.isFile()) return { path: p, size: st.size, mime: 'image/jpeg' }; } catch { /* нет файла */ }
+    }
     return null;
   }
   for (const [ext, mime] of [['jpg', 'image/jpeg'], ['mp4', 'video/mp4']] as const) {
     const p = mediaPath(chatId, id, ext);
-    if (existsSync(p)) { try { return { buf: readFileSync(p), mime }; } catch { return null; } }
+    try { const st = statSync(p); if (st.isFile()) return { path: p, size: st.size, mime }; } catch { /* нет файла */ }
   }
   return null;
 }
@@ -129,7 +125,7 @@ function run(cmd: string, args: string[]): Promise<void> {
     const p = spawn(cmd, args, { windowsHide: true });
     let err = '';
     p.stderr.on('data', (d: Buffer) => { err += String(d); });
-    p.on('error', (e) => reject(e));
+    p.on('error', (e: NodeJS.ErrnoException) => reject(e.code === 'ENOENT' ? new Error(`${cmd} не найден — установите ffmpeg (https://ffmpeg.org) для обработки видео и превью`) : e));
     p.on('close', (code) => (code === 0 ? resolve() : reject(new Error(cmd + ' exit ' + code + ': ' + err.slice(-300)))));
   });
 }
@@ -151,7 +147,7 @@ function runFfmpegProgress(args: string[], durationSec: number | null, onProgres
       if (lastUs >= 0) onProgress(Math.min(95, Math.max(5, Math.round((lastUs / (durationSec * 1e6)) * 90 + 5))));
     });
     p.stderr.on('data', (d: Buffer) => { err += String(d); });
-    p.on('error', (e) => reject(e));
+    p.on('error', (e: NodeJS.ErrnoException) => reject(e.code === 'ENOENT' ? new Error('ffmpeg не найден — установите ffmpeg (https://ffmpeg.org) для обработки видео и превью') : e));
     p.on('close', (code) => (code === 0 ? resolve() : reject(new Error('ffmpeg exit ' + code + ': ' + err.slice(-300)))));
   });
 }

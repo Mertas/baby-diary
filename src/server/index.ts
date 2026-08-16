@@ -8,10 +8,10 @@ import { handlePrompt, stopGeneration, isProcessing } from './llm.js';
 import { getState, saveState, mergeState, sanitizeStateEvents } from './state.js';
 import { requireClient, checkClient } from './auth.js';
 import { getWeather } from './weather.js';
-import { savePhoto, readMedia, prunePhotos, ingestMedia, queueFor, trimQueue, chatPhotoDir, restoreMediaQueue } from './photos.js';
+import { savePhoto, mediaFileInfo, prunePhotos, ingestMedia, queueFor, trimQueue, chatPhotoDir, restoreMediaQueue } from './photos.js';
 import { v4 as uuid } from 'uuid';
 import type { LlmMessage, ChatPreview } from '../db/schema.js';
-import { readFileSync, existsSync, mkdirSync, writeFileSync, unlinkSync, cpSync, rmSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, unlinkSync, cpSync, rmSync, createReadStream } from 'fs';
 import { join } from 'path';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -263,12 +263,34 @@ app.post('/api/chat/:id/photo', requireClient, (req, res) => {
 });
 
 // Отдача медиа (фото/видео) и превью: /api/photo/<chatId>/<id>[?th=1]
+// Стрим с Range (Accept-Ranges) — видео можно перематывать, файл не грузится в память целиком.
 app.get('/api/photo/:chatId/:id', requireClient, (req, res) => {
-  const m = readMedia(req.params.chatId, req.params.id, req.query.th === '1');
-  if (!m) return res.status(404).json({ error: 'not found' });
-  res.set('Content-Type', m.mime);
+  const info = mediaFileInfo(req.params.chatId, req.params.id, req.query.th === '1');
+  if (!info) return res.status(404).json({ error: 'not found' });
+  res.set('Content-Type', info.mime);
+  res.set('Accept-Ranges', 'bytes');
   res.set('Cache-Control', 'public, max-age=86400');
-  res.send(m.buf);
+  const range = req.headers.range;
+  let start = 0, end = info.size - 1, partial = false;
+  if (range) {
+    const m = /^bytes=(\d*)-(\d*)$/.exec(String(range).trim());
+    if (m && (m[1] || m[2])) {
+      const s = m[1] ? parseInt(m[1], 10) : NaN;
+      const e = m[2] ? parseInt(m[2], 10) : NaN;
+      if (!isNaN(s)) start = Math.max(0, Math.min(s, info.size - 1));
+      if (!isNaN(e)) end = Math.max(start, Math.min(e, info.size - 1));
+      else end = info.size - 1;
+      if (start > end) { res.status(416).set('Content-Range', `bytes */${info.size}`).end(); return; }
+      partial = true;
+      res.status(206);
+      res.set('Content-Range', `bytes ${start}-${end}/${info.size}`);
+    }
+  }
+  res.set('Content-Length', String(end - start + 1));
+  if (req.method === 'HEAD') { res.end(); return; }
+  const stream = createReadStream(info.path, { start, end });
+  stream.on('error', () => { if (!res.headersSent) res.status(404).json({ error: 'not found' }); else res.destroy(); });
+  stream.pipe(res);
 });
 
 // Загрузка медиа бинарём: файл сразу ставится в ОЧЕРЕДЬ обработки (ответ мгновенный),
@@ -386,6 +408,12 @@ server.listen(PORT, () => {
   console.log(`BabyDiary running at http://localhost:${PORT}`);
   // Догнать незавершённые конвертации после рестарта (очередь восстанавливается из .tmp-файлов)
   for (const chatId of restoreMediaQueue()) void processMediaQueue(chatId);
+  // Ротация llm_logs: полные промпты+ответы копятся мегабайтами на каждое сообщение — держим 30 дней
+  try {
+    const cutoff = Date.now() - 30 * 86400000;
+    const { changes } = getDb().prepare('DELETE FROM llm_logs WHERE created_at < ?').run(cutoff);
+    if (changes > 0) console.log(`[logs] cleaned ${changes} old llm_logs rows`);
+  } catch (e) { console.error('[logs] rotation failed:', e); }
 });
 process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);
 
