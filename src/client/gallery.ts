@@ -550,7 +550,7 @@ export function weatherCard(): HTMLElement | null {
   const cached = weatherCache && weatherCache.city === city && Date.now() - weatherCache.ts < 15 * 60 * 1000 ? weatherCache.data : null;
   if (cached) { apply(cached); return card; }
   append(body, el('div', { class: 'w-load' }, 'Загружаю погоду…'));
-  fetch('/api/weather?city=' + encodeURIComponent(city) + '&clientId=' + encodeURIComponent(CID) + '&clientSecret=' + encodeURIComponent(SEC))
+  fetch('/api/weather?city=' + encodeURIComponent(city))
     .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then((w) => { weatherCache = { city, ts: Date.now(), data: w }; apply(w); })
     .catch(() => { clear(body); append(body, el('div', { class: 'w-load' }, 'Не удалось загрузить погоду для «' + city + '».')); });

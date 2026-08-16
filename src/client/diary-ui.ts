@@ -474,9 +474,10 @@ export const CHAT_ID = window.__CHAT_ID__;
 export const CID = localStorage.getItem('pui2_clientId_' + CHAT_ID) || '';
 export const SEC = localStorage.getItem('pui2_secret_' + CHAT_ID) || '';
 export let S: any = {};
-/** URL медиа с креденшелами (media-эндпоинт защищён, <img>/<video> шлют только query). */
+/** URL медиа — без креденшелов в query: HttpOnly-кука bd ставится сервером при первом
+ *  аутентифицированном запросе (loadState), <img>/<video> ходят по ней. */
 export function phUrl(id: string, thumb = false): string {
-  return '/api/photo/' + CHAT_ID + '/' + id + (thumb ? '?th=1&' : '?') + 'clientId=' + encodeURIComponent(CID) + '&clientSecret=' + encodeURIComponent(SEC);
+  return '/api/photo/' + CHAT_ID + '/' + id + (thumb ? '?th=1' : '');
 }
 
 export function todayRef(): number {

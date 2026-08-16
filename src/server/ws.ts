@@ -1,6 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'http';
 import { getDb } from '../db/index.js';
+import { credsFromRequest } from './auth.js';
 
 type Subscriber = { ws: WebSocket; chatId: string; path: string };
 const subscribers: Subscriber[] = [];
@@ -16,26 +17,13 @@ function chatIdFromUrl(url: string | undefined): string | null {
   catch { return null; }
 }
 
-/** Креденшелы в query сокета: /chat/<id>/socket?clientId=...&clientSecret=... */
-function credsFromUrl(url: string | undefined): { clientId: string; clientSecret: string } {
-  const out = { clientId: '', clientSecret: '' };
-  if (!url) return out;
-  try {
-    const q = url.includes('?') ? url.slice(url.indexOf('?') + 1) : '';
-    for (const part of q.split('&')) {
-      const [k, v] = part.split('=');
-      if (k === 'clientId') out.clientId = decodeURIComponent(v || '');
-      if (k === 'clientSecret') out.clientSecret = decodeURIComponent(v || '');
-    }
-  } catch { /* ок */ }
-  return out;
-}
-
-function isAuthed(chatId: string, creds: { clientId: string; clientSecret: string }): boolean {
-  if (!creds.clientId || !creds.clientSecret) return false;
+function isAuthed(chatId: string, req: IncomingMessage): boolean {
+  // Креды — из query/заголовков/HttpOnly-куки bd (единый путь из auth.ts; IncomingMessage безопасен для credsOf)
+  const { clientId, clientSecret } = credsFromRequest(req as never);
+  if (!clientId || !clientSecret) return false;
   try {
     const db = getDb();
-    return !!db.prepare('SELECT 1 FROM clients WHERE client_id = ? AND secret = ? AND chat_id = ?').get(creds.clientId, creds.clientSecret, chatId);
+    return !!db.prepare('SELECT 1 FROM clients WHERE client_id = ? AND secret = ? AND chat_id = ?').get(clientId, clientSecret, chatId);
   } catch { return false; }
 }
 
@@ -43,7 +31,7 @@ export function setupWebSocket(wss: WebSocketServer): void {
   wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     const chatId = chatIdFromUrl(req.url) || 'unknown';
     // Без валидных креденшелов сокет не подключается: сообщения и state чата — персональные данные.
-    if (!isAuthed(chatId, credsFromUrl(req.url))) {
+    if (!isAuthed(chatId, req)) {
       ws.close(4001, 'unauthorized');
       return;
     }

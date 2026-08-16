@@ -2,11 +2,10 @@
 
 const W = window as unknown as Record<string, unknown>;
 const CHAT_ID = W.__CHAT_ID__ as string;
-// Креденшелы — из localStorage (их кладёт bridge.ts при создании/снапшоте чата):
-// сокет без них сервер закрывает (ws.ts), чтобы сообщения/state не утекали по URL.
-const WS_CID = encodeURIComponent(localStorage.getItem(`pui2_clientId_${CHAT_ID}`) || '');
-const WS_SEC = encodeURIComponent(localStorage.getItem(`pui2_secret_${CHAT_ID}`) || '');
-const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/chat/${CHAT_ID}/socket?clientId=${WS_CID}&clientSecret=${WS_SEC}`;
+// Аутентификация сокета — по HttpOnly-куке bd (её ставит сервер при первом запросе с креденшелами).
+// Секрет в URL сокета не передаётся. Если куки ещё нет (самый первый визит) — сервер закроет
+// соединение (4001), а экспоненциальный реконнект ниже поднимет его после установки куки.
+const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/chat/${CHAT_ID}/socket`;
 
 const subscriptions: Record<string, (content: string) => void> = {};
 let ws: WebSocket | null = null;
