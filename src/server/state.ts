@@ -326,13 +326,35 @@ export function sanitizeStateEvents(state: Record<string, unknown>, dayBase?: nu
   return out;
 }
 
+/** Убрать чувствительные поля перед хранением/отправкой: GPS-координаты фото.
+ *  Геолокация (дом, детская площадка) не нужна дневнику и не должна попадать
+ *  ни в БД, ни в llm_logs, ни в системный промпт DeepSeek. */
+export function stripSensitiveState(state: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...state };
+  if (Array.isArray(out.photos)) {
+    out.photos = out.photos.map((p) => {
+      if (p && typeof p === 'object') {
+        const rec = { ...(p as Record<string, unknown>) };
+        if (rec.exif && typeof rec.exif === 'object') {
+          const e = { ...(rec.exif as Record<string, unknown>) };
+          delete e.gps;
+          if (Object.keys(e).length) rec.exif = e; else delete rec.exif;
+        }
+        return rec;
+      }
+      return p;
+    });
+  }
+  return out;
+}
+
 export function saveState(chatId: string, state: Record<string, unknown>): void {
   const db = getDb();
   const now = Date.now();
   db.prepare(
     'INSERT INTO baby_state (chat_id, state, created_at, updated_at) VALUES (?, ?, ?, ?) ' +
     'ON CONFLICT(chat_id) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at'
-  ).run(chatId, JSON.stringify(state), now, now);
+  ).run(chatId, JSON.stringify(stripSensitiveState(state)), now, now);
 }
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {

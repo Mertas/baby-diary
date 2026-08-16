@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { getDb } from '../db/index.js';
 import { DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL, LLM_TIMEOUT_MS } from './config.js';
-import { getState, saveState, mergeState, sanitizeStateEvents, extractMomDay } from './state.js';
+import { getState, saveState, mergeState, sanitizeStateEvents, extractMomDay, stripSensitiveState } from './state.js';
 import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -46,7 +46,8 @@ function buildMessageHistory(chatId: string): Array<{ role: 'system' | 'user' | 
   let systemPrompt = getSystemPrompt();
   try {
     const state = getState(chatId);
-    systemPrompt += '\n\n# ТЕКУЩЕЕ СОСТОЯНИЕ ДНЕВНИКА (JSON)\n' + JSON.stringify(state, null, 1) +
+    // stripSensitiveState: в контекст не попадают GPS-координаты фото (геолокация семьи)
+    systemPrompt += '\n\n# ТЕКУЩЕЕ СОСТОЯНИЕ ДНЕВНИКА (JSON)\n' + JSON.stringify(stripSensitiveState(state), null, 1) +
       '\n\nЕсли какие-то разделы пустые или незаполненные — предложи их заполнить. Все новые данные передавай в state.';
   } catch { /* state unavailable */ }
 
