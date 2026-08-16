@@ -11,7 +11,7 @@ import { getWeather } from './weather.js';
 import { savePhoto, readMedia, prunePhotos, ingestMedia, queueFor, trimQueue, chatPhotoDir, restoreMediaQueue } from './photos.js';
 import { v4 as uuid } from 'uuid';
 import type { LlmMessage, ChatPreview } from '../db/schema.js';
-import { readFileSync, existsSync, mkdirSync, writeFileSync, unlinkSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, unlinkSync, cpSync, rmSync } from 'fs';
 import { join } from 'path';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -139,7 +139,7 @@ app.post('/chat/:id/undo', (req, res) => {
   const chatId = req.params.id;
   if (!checkClient(req, chatId)) return res.status(401).json({ error: 'Invalid credentials' });
   const db = getDb();
-  const lastAgent = db.prepare('SELECT id FROM llm_messages WHERE chat_id = ? AND role = ? ORDER BY id DESC LIMIT 1').get(chatId, 'agent') as LlmMessage | undefined;
+  const lastAgent = db.prepare('SELECT id, prev_state FROM llm_messages WHERE chat_id = ? AND role = ? ORDER BY id DESC LIMIT 1').get(chatId, 'agent') as Pick<LlmMessage, 'id' | 'prev_state'> | undefined;
   let agentId: number | null = null, userId: number | null = null;
   if (lastAgent) {
     const lastUser = db.prepare('SELECT id FROM llm_messages WHERE chat_id = ? AND role = ? AND id < ? ORDER BY id DESC LIMIT 1').get(chatId, 'user', lastAgent.id) as LlmMessage | undefined;
@@ -147,6 +147,14 @@ app.post('/chat/:id/undo', (req, res) => {
     if (lastUser) userId = lastUser.id;
     db.prepare('DELETE FROM llm_messages WHERE id = ?').run(lastAgent.id);
     if (lastUser) db.prepare('DELETE FROM llm_messages WHERE id = ?').run(lastUser.id);
+    // Откат state к виду до этого ответа (если ответ менял дневник)
+    if (typeof lastAgent.prev_state === 'string' && lastAgent.prev_state) {
+      try {
+        const restored = JSON.parse(lastAgent.prev_state) as Record<string, unknown>;
+        saveState(chatId, restored);
+        broadcast(chatId, '/chat/state', JSON.stringify({ path: '/chat/state', type: 'state', state: restored }));
+      } catch { /* битый снапшот — state не трогаем */ }
+    }
   }
   broadcast(chatId, '/body', JSON.stringify({ path: '/body', type: 'undo', agentId, userId }));
   res.json({ status: 'ok' });
@@ -160,8 +168,16 @@ app.post('/chat/:id/snapshot', (req, res) => {
   db.transaction(() => {
     db.prepare('INSERT INTO chats (id, title) SELECT ?, title FROM chats WHERE id = ?').run(newChatId, chatId);
     db.prepare('INSERT INTO clients (client_id, secret, chat_id) VALUES (?, ?, ?)').run(newClientId, newSecret, newChatId);
-    db.prepare('INSERT INTO llm_messages (chat_id, role, content, ui, patch, choices, created_at) SELECT ?, role, content, ui, patch, choices, created_at FROM llm_messages WHERE chat_id = ?').run(newChatId, chatId);
+    db.prepare('INSERT INTO llm_messages (chat_id, role, content, ui, patch, choices, multi, prev_state, created_at) SELECT ?, role, content, ui, patch, choices, multi, prev_state, created_at FROM llm_messages WHERE chat_id = ?').run(newChatId, chatId);
+    // Дневник (baby_state) — снимок должен копировать и его, иначе «снимок» теряет все данные
+    const st = getState(chatId);
+    if (Object.keys(st).length) saveState(newChatId, st);
   })();
+  // Фото/видео чата на диске — копируем в каталог нового чата
+  const srcDir = chatPhotoDir(chatId);
+  if (existsSync(srcDir)) {
+    try { cpSync(srcDir, chatPhotoDir(newChatId), { recursive: true }); } catch (e) { console.error('snapshot copy photos failed:', e); }
+  }
   res.json({ id: newChatId, clientId: newClientId, clientSecret: newSecret });
 });
 
@@ -171,6 +187,10 @@ app.delete('/api/chats/:id', (req, res) => {
   const db = getDb();
   stopGeneration(chatId);
   db.prepare('DELETE FROM chats WHERE id = ?').run(chatId);
+  // Медиа на диске и очередь обработки — иначе файлы/хвосты остаются после удаления дневника
+  const dir = chatPhotoDir(chatId);
+  if (existsSync(dir)) { try { rmSync(dir, { recursive: true, force: true }); } catch { /* ок */ } }
+  queueFor(chatId).length = 0;
   res.json({ status: 'deleted' });
 });
 

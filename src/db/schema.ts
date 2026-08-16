@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS llm_messages (
   content TEXT NOT NULL,
   ui TEXT,
   patch TEXT,
+  prev_state TEXT,
   created_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
   FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE
 );
@@ -71,6 +72,7 @@ export interface LlmMessage {
   patch: string | null;
   choices: string | null;
   multi: number;
+  prev_state: string | null;
   created_at: number;
 }
 

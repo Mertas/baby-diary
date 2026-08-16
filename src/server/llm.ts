@@ -176,16 +176,28 @@ const fillAttempts = new Map<string, number>();
 async function fillEmptySections(chatId: string, merged: Record<string, unknown>, emit: Broadcaster, skipSkills = false): Promise<void> {
   const s = merged as Record<string, any>;
   const bd = s.birthDate as string | undefined;
-  const ageMs = bd ? Date.now() - new Date(bd).getTime() : NaN;
+  // «Сегодня» по дневнику = день мамы (lastMomDay 'ГГГГ-ММ-ДД'), иначе серверная дата.
+  // Возраст/вехи считаем от него — дневник может вестись «задним числом».
+  const dayRef = (() => {
+    const lmd = s.lastMomDay as string | undefined;
+    if (typeof lmd === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(lmd)) {
+      const d = new Date(Number(lmd.slice(0, 4)), Number(lmd.slice(5, 7)) - 1, Number(lmd.slice(8, 10)));
+      if (!isNaN(d.getTime())) return d.getTime();
+    }
+    return Date.now();
+  })();
+  const ageMs = bd ? dayRef - new Date(bd).getTime() : NaN;
   const ageDays = isNaN(ageMs) ? NaN : ageMs / 86400000;
   const ageWeeks = ageDays / 7;
   // Навыки: при знакомстве модель должна провести ОПРОС с вариантами. Пока она сама не задаёт вопросы
   // с choices — сервер генерирует их (макс. 2 вопроса), затем дозаполняет skills автоматически.
   const attempts = fillAttempts.get(chatId) || 0;
   if (attempts >= 3) return;
-  fillAttempts.set(chatId, attempts + 1);
   const skillsEmpty = Array.isArray(s.skills) ? s.skills.length === 0 : true;
   if (skillsEmpty && !skipSkills && attempts < 2) {
+    // Попытка тратится только на реальное действие (опрос/дозаполнение) —
+    // иначе 3 ответа с заполненным state навсегда отключали бы дозаполнение.
+    fillAttempts.set(chatId, attempts + 1);
     // ОПРОС: сервер задаёт вопрос о навыках с вариантами отдельным сообщением
     try {
       const msgs = buildMessageHistory(chatId);
@@ -209,6 +221,8 @@ async function fillEmptySections(chatId: string, merged: Record<string, unknown>
   const needCal = !hasMed && !isNaN(ageDays) && ageDays <= 730;
   const needBlurb = !s.blurb && !!s.name;
   if (!needSkills && !needSpurts && !needCal && !needBlurb) return;
+  // Реальное дозаполнение — только здесь тратим попытку
+  fillAttempts.set(chatId, attempts + 1);
   console.log('[fill]', chatId.slice(0, 8), 'attempt', attempts + 1, 'skills:', needSkills, 'spurts:', needSpurts, 'cal:', needCal, 'blurb:', needBlurb);
 
   const asks: string[] = [];
@@ -327,7 +341,10 @@ export async function handlePrompt(chatId: string, prompt: string, modelName: st
       } catch { /* варианты — опция, не критично */ }
     }
 
-    db.prepare('INSERT INTO llm_messages (chat_id, role, content, ui, choices, multi) VALUES (?, ?, ?, ?, ?, ?)').run(chatId, 'agent', text, ui, choices ? JSON.stringify(choices) : null, parsed.multi ? 1 : 0);
+    // Состояние ДО ответа — для undo (откат удаляет и сообщение, и изменения state)
+    const prevState = getState(chatId);
+    const ins = db.prepare('INSERT INTO llm_messages (chat_id, role, content, ui, choices, multi) VALUES (?, ?, ?, ?, ?, ?)').run(chatId, 'agent', text, ui, choices ? JSON.stringify(choices) : null, parsed.multi ? 1 : 0);
+    const agentMsgId = Number(ins.lastInsertRowid);
 
     const choicesAttr = choices ? ` data-choices="${escapeAttr(JSON.stringify(choices))}"${parsed.multi ? ' data-multi="1"' : ''}` : '';
     emit('update', `<div class="message message-agent"${choicesAttr}>${escapeHtml(text)}</div>`);
@@ -335,7 +352,7 @@ export async function handlePrompt(chatId: string, prompt: string, modelName: st
     // Save structured state to DB (persistent app data), then broadcast to clients
     if (state) {
       const dayBase = extractMomDay(prompt);
-      const merged = mergeState(getState(chatId), sanitizeStateEvents(state, dayBase));
+      const merged = mergeState(prevState, sanitizeStateEvents(state, dayBase));
       if (dayBase != null) {
         // запоминаем «день мамы» — возраст/сводка/таймлайн считают от него (ЛОКАЛЬНАЯ дата, не UTC!)
         const dd = new Date(dayBase);
@@ -343,6 +360,8 @@ export async function handlePrompt(chatId: string, prompt: string, modelName: st
       }
       saveState(chatId, merged);
       emit('state', merged);
+      // Снимок state до ответа — undo восстановит его
+      db.prepare('UPDATE llm_messages SET prev_state = ? WHERE id = ?').run(JSON.stringify(prevState), agentMsgId);
       // Проактивное дозаполнение пустых разделов: модель часто отвечает только данными дня,
       // а вкладки (навыки/скачки/календарь-вехи) остаются пустыми. Тихо дозаполняем (макс. 2 попытки на чат).
       // Если модель задала вопрос с вариантами (идёт опрос про навыки) — skills не трогаем.
@@ -384,7 +403,8 @@ function updateChatTitle(chatId: string, userPrompt: string): void {
   const db = getDb();
   const { count } = db.prepare('SELECT COUNT(*) as count FROM llm_messages WHERE chat_id = ? AND role IN (?, ?)').get(chatId, 'user', 'agent') as { count: number };
   if (count <= 2) {
+    // Имя чата = первые слова первого сообщения (чаты создаются как «Baby Diary» — их не держим вечно)
     const title = userPrompt.slice(0, 60) + (userPrompt.length > 60 ? '...' : '');
-    db.prepare('UPDATE chats SET title = ? WHERE id = ? AND title = ?').run(title, chatId, 'New Chat');
+    db.prepare('UPDATE chats SET title = ? WHERE id = ?').run(title, chatId);
   }
 }
