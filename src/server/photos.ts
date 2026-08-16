@@ -62,13 +62,21 @@ export function deletePhotoFile(chatId: string, id: string): void {
   }
 }
 
-/** Удалить файлы медиа, которых больше нет в state (чистка после merge с _delete-маркерами). */
+/** Удалить файлы медиа, которых больше нет в state (чистка после merge с _delete-маркерами).
+ *  Файлы элементов, ещё стоящих в очереди обработки (queued/processing), НЕ трогаем:
+ *  они записаны на диск до попадания в state — prune в это окно иначе удалит их. */
 export function prunePhotos(chatId: string, keptIds: Set<string>): void {
   const dir = chatPhotoDir(chatId);
   if (!existsSync(dir)) return;
+  const pending = new Set(
+    queueFor(chatId)
+      .filter((i) => i.status === 'queued' || i.status === 'processing')
+      .map((i) => i.id)
+  );
   for (const f of readdirSafe(dir)) {
     if (!/\.(jpg|mp4)$/i.test(f)) continue;
     const id = f.replace(/\.th\.jpg$/i, '').replace(/\.(jpg|mp4)$/i, '');
+    if (pending.has(id)) continue;
     if (!keptIds.has(id)) deletePhotoFile(chatId, id);
   }
 }

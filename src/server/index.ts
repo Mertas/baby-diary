@@ -221,9 +221,13 @@ app.post('/api/chat/:id/state', requireClient, (req, res) => {
   const prev = getState(chatId);
   const merged = mergeState(prev, sanitizeStateEvents(state));
   saveState(chatId, merged);
-  // Чистка файлов фото, удалённых из state (маркеры _delete)
-  const kept = new Set<string>((Array.isArray(merged.photos) ? merged.photos : []).map((p: any) => String(p.id || '')));
-  prunePhotos(chatId, kept);
+  // Чистка файлов фото, удалённых из state (маркеры _delete).
+  // ВАЖНО: если photos в merged — НЕ массив (LLM-дрейф), чистку НЕ делаем:
+  // иначе kept пуст и prunePhotos сотрёт всю галерею.
+  if (Array.isArray(merged.photos)) {
+    const kept = new Set<string>(merged.photos.map((p: any) => String(p.id || '')));
+    prunePhotos(chatId, kept);
+  }
   // Разослать обновление по WS — иначе другие вкладки не узнают об изменениях (галерея, аватарка)
   broadcast(chatId, '/chat/state', JSON.stringify({ path: '/chat/state', type: 'state', state: merged }));
   res.json(merged);
@@ -241,18 +245,12 @@ app.post('/api/chat/:id/photo', requireClient, (req, res) => {
   } catch (e) {
     return res.status(400).json({ error: String((e as Error).message || e) });
   }
-  // EXIF-метаданные (дата съёмки, GPS) — валидируем и храним в записи фото
+  // EXIF-метаданные: сохраняем ТОЛЬКО дату съёмки. GPS-координаты не храним вовсе —
+  // это геолокация ребёнка/дома; они не нужны для дневника, но утекают при бэкапе/в логи.
   let exif: unknown = undefined;
   if (req.body.exif && typeof req.body.exif === 'object') {
     const e = req.body.exif as Record<string, unknown>;
-    const cleaned: Record<string, unknown> = {};
-    if (typeof e.taken === 'string' && /^\d{4}:\d{2}:\d{2} \d{2}:\d{2}/.test(e.taken)) cleaned.taken = e.taken.slice(0, 19);
-    if (e.gps && typeof e.gps === 'object') {
-      const g = e.gps as Record<string, unknown>;
-      if (typeof g.lat === 'number' && typeof g.lon === 'number' && isFinite(g.lat) && isFinite(g.lon) &&
-          Math.abs(g.lat) <= 90 && Math.abs(g.lon) <= 180) cleaned.gps = { lat: g.lat, lon: g.lon };
-    }
-    if (Object.keys(cleaned).length) exif = cleaned;
+    if (typeof e.taken === 'string' && /^\d{4}:\d{2}:\d{2} \d{2}:\d{2}/.test(e.taken)) exif = { taken: e.taken.slice(0, 19) };
   }
   const photo = { id, desc: typeof desc === 'string' && desc.trim() ? desc.trim().slice(0, 500) : '', ts: Date.now(), exif };
   const merged = mergeState(getState(chatId), { photos: [photo] });
@@ -375,9 +373,8 @@ async function processMediaQueue(chatId: string): Promise<void> {
         }
         const exif: Record<string, unknown> = {};
         if (metaJson.exif && typeof metaJson.exif === 'object') {
+          // GPS не сохраняем — см. /api/chat/:id/photo (приватность геолокации)
           if (typeof metaJson.exif.taken === 'string' && /^\d{4}:\d{2}:\d{2} \d{2}:\d{2}/.test(metaJson.exif.taken)) exif.taken = metaJson.exif.taken.slice(0, 19);
-          const g = metaJson.exif.gps;
-          if (g && typeof g.lat === 'number' && typeof g.lon === 'number' && isFinite(g.lat) && isFinite(g.lon) && Math.abs(g.lat) <= 90 && Math.abs(g.lon) <= 180) exif.gps = { lat: g.lat, lon: g.lon };
         }
         if (item.kind === 'video' && meta.taken) exif.taken = meta.taken;
         if (Object.keys(exif).length) rec.exif = exif;
