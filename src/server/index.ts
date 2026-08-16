@@ -8,7 +8,7 @@ import { handlePrompt, stopGeneration, isProcessing } from './llm.js';
 import { getState, saveState, mergeState, sanitizeStateEvents } from './state.js';
 import { requireClient, checkClient } from './auth.js';
 import { getWeather } from './weather.js';
-import { savePhoto, mediaFileInfo, prunePhotos, ingestMedia, queueFor, trimQueue, chatPhotoDir, restoreMediaQueue } from './photos.js';
+import { mediaFileInfo, prunePhotos, ingestMedia, queueFor, trimQueue, chatPhotoDir, restoreMediaQueue } from './photos.js';
 import { exportChatZip, dailyBackup } from './backup.js';
 import { v4 as uuid } from 'uuid';
 import type { LlmMessage, ChatPreview } from '../db/schema.js';
@@ -278,33 +278,6 @@ app.post('/api/chat/:id/state', requireClient, (req, res) => {
   // Разослать обновление по WS — иначе другие вкладки не узнают об изменениях (галерея, аватарка)
   broadcast(chatId, '/chat/state', JSON.stringify({ path: '/chat/state', type: 'state', state: merged }));
   res.json(merged);
-});
-
-// Загрузка фотографии (base64 JPEG, уже обработанной на клиенте: ресайз + EXIF-ориентация)
-app.post('/api/chat/:id/photo', requireClient, (req, res) => {
-  const { data, desc } = req.body;
-  const chatId = req.params.id;
-  const db = getDb();
-  if (typeof data !== 'string' || !data) return res.status(400).json({ error: 'data required' });
-  const id = uuid().slice(0, 8);
-  try {
-    savePhoto(chatId, id, data);
-  } catch (e) {
-    return res.status(400).json({ error: String((e as Error).message || e) });
-  }
-  // EXIF-метаданные: сохраняем ТОЛЬКО дату съёмки. GPS-координаты не храним вовсе —
-  // это геолокация ребёнка/дома; они не нужны для дневника, но утекают при бэкапе/в логи.
-  let exif: unknown = undefined;
-  if (req.body.exif && typeof req.body.exif === 'object') {
-    const e = req.body.exif as Record<string, unknown>;
-    if (typeof e.taken === 'string' && /^\d{4}:\d{2}:\d{2} \d{2}:\d{2}/.test(e.taken)) exif = { taken: e.taken.slice(0, 19) };
-  }
-  const photo = { id, desc: typeof desc === 'string' && desc.trim() ? desc.trim().slice(0, 500) : '', ts: Date.now(), exif };
-  const merged = mergeState(getState(chatId), { photos: [photo] });
-  saveState(chatId, merged);
-  // Другие вкладки тоже должны увидеть новое фото
-  broadcast(chatId, '/chat/state', JSON.stringify({ path: '/chat/state', type: 'state', state: merged }));
-  res.json(photo);
 });
 
 // Отдача медиа (фото/видео) и превью: /api/photo/<chatId>/<id>[?th=1]

@@ -101,12 +101,12 @@ export function renderStock() {
   }
   const add = el('button', { class: 'ask-btn' }, '＋ Добавить запас');
   add.addEventListener('click', () => {
+    let f: { ni: HTMLInputElement; qi: HTMLInputElement; no: HTMLInputElement } | null = null;
     modal('Добавить запас', (b) => {
       const mk = (ph: string) => { const i = el('input', { class: 'modal-inp', placeholder: ph }); append(b, i); return i; };
-      const ni = mk('Что (подгузники, смесь…)'), qi = mk('Сколько осталось (2 пачки, 500 мл…)'), no = mk('На сколько хватит / примечание');
-      (window as any).__stk = { ni, qi, no };
+      f = { ni: mk('Что (подгузники, смесь…)') as HTMLInputElement, qi: mk('Сколько осталось (2 пачки, 500 мл…)') as HTMLInputElement, no: mk('На сколько хватит / примечание') as HTMLInputElement };
     }, () => {
-      const { ni, qi, no } = (window as any).__stk;
+      const { ni, qi, no } = f!;
       const qv = String(qi.value || '').match(/(\d+(?:[.,]\d+)?)/);
       const stock2 = [...(S.stock || [])];
       const nm = ni.value.trim();
@@ -137,12 +137,12 @@ export function renderFamily() {
   }
   const add = el('button', { class: 'ask-btn' }, '＋ Добавить');
   add.addEventListener('click', () => {
+    let f: { ni: HTMLInputElement; ri: HTMLInputElement; no: HTMLInputElement } | null = null;
     modal('Добавить члена семьи', (b) => {
       const inp = (ph: string) => { const i = el('input', { class: 'modal-inp', placeholder: ph }); append(b, i); return i; };
-      const ni = inp('Имя'), ri = inp('Кто (мама, папа, бабушка…)'), no = inp('Примечание (день рождения, особенности)');
-      (window as any).__fam = { ni, ri, no };
+      f = { ni: inp('Имя') as HTMLInputElement, ri: inp('Кто (мама, папа, бабушка…)') as HTMLInputElement, no: inp('Примечание (день рождения, особенности)') as HTMLInputElement };
     }, () => {
-      const { ni, ri, no } = (window as any).__fam;
+      const { ni, ri, no } = f!;
       const fam2 = [...(S.family || [])];
       fam2.push({ name: ni.value.trim() || '—', role: ri.value.trim() || '', note: no.value.trim() || undefined });
       saveState({ family: fam2 });
@@ -189,17 +189,17 @@ export function renderBudget() {
   }
   const add = el('button', { class: 'ask-btn' }, '＋ Добавить трату/доход');
   add.addEventListener('click', () => {
+    let f: { sel: HTMLSelectElement; ci: HTMLInputElement; ai: HTMLInputElement; ni: HTMLInputElement } | null = null;
     modal('Добавить запись', (b) => {
       const mk = (ph: string, def?: string) => { const i = el('input', { class: 'modal-inp', placeholder: ph, value: def || '' }); append(b, i); return i; };
       const sel = el('select', { class: 'modal-inp' });
       append(sel, el('option', { value: 'expense' }, 'Расход'), el('option', { value: 'income' }, 'Доход'));
       append(b, sel);
-      const ci = mk('Категория (продукты, подгузники…)'), ai = mk('Сумма, ₽'), ni = mk('Примечание');
-      (window as any).__bud = { sel, ci, ai, ni };
+      f = { sel: sel as HTMLSelectElement, ci: mk('Категория (продукты, подгузники…)') as HTMLInputElement, ai: mk('Сумма, ₽') as HTMLInputElement, ni: mk('Примечание') as HTMLInputElement };
     }, () => {
-      const { sel, ci, ai, ni } = (window as any).__bud;
+      const { sel, ci, ai, ni } = f!;
       const bud2 = [...(S.budget || [])];
-      bud2.push({ id: 'b' + Math.random().toString(36).slice(2, 8), type: sel.value, category: ci.value.trim() || 'другое', amount: Number(ai.value) || 0, note: ni.value.trim() || undefined, date: new Date().toISOString().slice(0, 10) });
+      bud2.push({ id: 'b' + Math.random().toString(36).slice(2, 8), type: (sel.value === 'income' ? 'income' : 'expense'), category: ci.value.trim() || 'другое', amount: Number(ai.value) || 0, note: ni.value.trim() || undefined, date: new Date().toISOString().slice(0, 10) });
       saveState({ budget: bud2 });
     });
   });

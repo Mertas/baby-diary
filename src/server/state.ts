@@ -1,7 +1,5 @@
 import { getDb } from '../db/index.js';
 
-const ARRAY_KEYS = new Set(['feeds', 'sleeps', 'events', 'tips', 'recipes', 'spurts', 'todos', 'shopping', 'reminders', 'calendar', 'tabs', 'family', 'budget', 'llmNotes', 'stock', 'photos']);
-
 export function getState(chatId: string): Record<string, unknown> {
   const db = getDb();
   const row = db.prepare('SELECT state FROM baby_state WHERE chat_id = ?').get(chatId) as { state: string } | undefined;

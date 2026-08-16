@@ -18,16 +18,6 @@ export function mediaPath(chatId: string, id: string, ext: 'jpg' | 'mp4' | 'th.j
   return join(PHOTO_DIR, chatId, id + '.' + ext);
 }
 
-/** Сохранить загруженное фото (base64 JPEG, обработано на клиенте). */
-export function savePhoto(chatId: string, id: string, base64Data: string): void {
-  if (!safeId(chatId) || !safeId(id)) throw new Error('bad id');
-  const buf = Buffer.from(base64Data, 'base64');
-  if (!buf.length || buf.length > 8 * 1024 * 1024) throw new Error('photo too large');
-  const dir = chatPhotoDir(chatId);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(mediaPath(chatId, id, 'jpg'), buf);
-}
-
 /** Превью (thumb): фото — ресайз до 320px, видео — кадр на 0.5с. `<id>.th.jpg` рядом с оригиналом. */
 function makeThumb(src: string, out: string, video: boolean): Promise<void> {
   const args = video
