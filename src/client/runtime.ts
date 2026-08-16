@@ -1,7 +1,11 @@
 // runtime.ts — WebSocket connection, subscription manager, message dispatch
 
 const CHAT_ID = (window as Record<string, unknown>).__CHAT_ID__ as string;
-const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/chat/${CHAT_ID}/socket`;
+// Креденшелы — из localStorage (их кладёт bridge.ts при создании/снапшоте чата):
+// сокет без них сервер закрывает (ws.ts), чтобы сообщения/state не утекали по URL.
+const WS_CID = encodeURIComponent(localStorage.getItem(`pui2_clientId_${CHAT_ID}`) || '');
+const WS_SEC = encodeURIComponent(localStorage.getItem(`pui2_secret_${CHAT_ID}`) || '');
+const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/chat/${CHAT_ID}/socket?clientId=${WS_CID}&clientSecret=${WS_SEC}`;
 
 const subscriptions: Record<string, (content: string) => void> = {};
 let ws: WebSocket | null = null;

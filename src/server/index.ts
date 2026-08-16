@@ -6,6 +6,7 @@ import { PORT } from './config.js';
 import { setupWebSocket, broadcast, setReplayHandler } from './ws.js';
 import { handlePrompt, stopGeneration, isProcessing } from './llm.js';
 import { getState, saveState, mergeState, sanitizeStateEvents } from './state.js';
+import { requireClient, checkClient } from './auth.js';
 import { getWeather } from './weather.js';
 import { savePhoto, readMedia, prunePhotos, ingestMedia, queueFor, trimQueue, chatPhotoDir, restoreMediaQueue } from './photos.js';
 import { v4 as uuid } from 'uuid';
@@ -104,12 +105,10 @@ app.post('/api/chats', (_req, res) => {
 });
 
 app.post('/chat/:id/prompt', (req, res) => {
-  const { clientId, clientSecret, prompt, model } = req.body;
+  const { prompt, model } = req.body;
   const chatId = req.params.id;
   if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) return res.status(400).json({ error: 'Empty prompt' });
-  const db = getDb();
-  const client = db.prepare('SELECT * FROM clients WHERE client_id = ? AND secret = ? AND chat_id = ?').get(clientId, clientSecret, chatId);
-  if (!client) return res.status(401).json({ error: 'Invalid credentials' });
+  if (!checkClient(req, chatId)) return res.status(401).json({ error: 'Invalid credentials' });
   if (isProcessing(chatId)) return res.status(429).json({ error: 'Already processing' });
   res.json({ status: 'processing' });
 
@@ -130,19 +129,16 @@ app.post('/chat/:id/prompt', (req, res) => {
 });
 
 app.post('/chat/:id/stop', (req, res) => {
-  const { clientId, clientSecret } = req.body;
-  const db = getDb();
-  const client = db.prepare('SELECT * FROM clients WHERE client_id = ? AND secret = ? AND chat_id = ?').get(clientId, clientSecret, req.params.id);
-  if (!client) return res.status(401).json({ error: 'Invalid credentials' });
-  stopGeneration(req.params.id);
+  const chatId = req.params.id;
+  if (!checkClient(req, chatId)) return res.status(401).json({ error: 'Invalid credentials' });
+  stopGeneration(chatId);
   res.json({ status: 'stopped' });
 });
 
 app.post('/chat/:id/undo', (req, res) => {
-  const { clientId, clientSecret } = req.body;
   const chatId = req.params.id;
+  if (!checkClient(req, chatId)) return res.status(401).json({ error: 'Invalid credentials' });
   const db = getDb();
-  if (!db.prepare('SELECT * FROM clients WHERE client_id = ? AND secret = ? AND chat_id = ?').get(clientId, clientSecret, chatId)) return res.status(401).json({ error: 'Invalid credentials' });
   const lastAgent = db.prepare('SELECT id FROM llm_messages WHERE chat_id = ? AND role = ? ORDER BY id DESC LIMIT 1').get(chatId, 'agent') as LlmMessage | undefined;
   let agentId: number | null = null, userId: number | null = null;
   if (lastAgent) {
@@ -157,10 +153,9 @@ app.post('/chat/:id/undo', (req, res) => {
 });
 
 app.post('/chat/:id/snapshot', (req, res) => {
-  const { clientId, clientSecret } = req.body;
   const chatId = req.params.id;
+  if (!checkClient(req, chatId)) return res.status(401).json({ error: 'Invalid credentials' });
   const db = getDb();
-  if (!db.prepare('SELECT * FROM clients WHERE client_id = ? AND secret = ? AND chat_id = ?').get(clientId, clientSecret, chatId)) return res.status(401).json({ error: 'Invalid credentials' });
   const newChatId = uuid(), newClientId = uuid(), newSecret = uuid();
   db.transaction(() => {
     db.prepare('INSERT INTO chats (id, title) SELECT ?, title FROM chats WHERE id = ?').run(newChatId, chatId);
@@ -171,10 +166,9 @@ app.post('/chat/:id/snapshot', (req, res) => {
 });
 
 app.delete('/api/chats/:id', (req, res) => {
-  const db = getDb();
-  const { clientId, clientSecret } = req.body;
   const chatId = req.params.id;
-  if (!db.prepare('SELECT * FROM clients WHERE client_id = ? AND secret = ? AND chat_id = ?').get(clientId, clientSecret, chatId)) return res.status(401).json({ error: 'Invalid credentials' });
+  if (!checkClient(req, chatId)) return res.status(401).json({ error: 'Invalid credentials' });
+  const db = getDb();
   stopGeneration(chatId);
   db.prepare('DELETE FROM chats WHERE id = ?').run(chatId);
   res.json({ status: 'deleted' });
@@ -182,14 +176,14 @@ app.delete('/api/chats/:id', (req, res) => {
 
 // ─── API: Baby state (persistent app data) ──────────────────
 
-app.get('/api/chat/:id/state', (req, res) => {
-  // Открытый доступ осознанно: страница чата и так содержит все сообщения,
-  // приложение однопользовательское (localhost). Защищено только удаление.
+app.get('/api/chat/:id/state', requireClient, (req, res) => {
+  // Доступ только с креденшелами чата (query: clientId/clientSecret) —
+  // state содержит персональные данные ребёнка и GPS фото.
   res.json(getState(req.params.id));
 });
 
 // Погода (Open-Meteo, без ключа): ?city=Москва — геокодинг + текущая погода + 8 дней
-app.get('/api/weather', async (req, res) => {
+app.get('/api/weather', requireClient, async (req, res) => {
   const city = String(req.query.city || '').trim();
   if (!city) return res.status(400).json({ error: 'city required' });
   try {
@@ -199,11 +193,10 @@ app.get('/api/weather', async (req, res) => {
   }
 });
 
-app.post('/api/chat/:id/state', (req, res) => {
-  const { clientId, clientSecret, state } = req.body;
+app.post('/api/chat/:id/state', requireClient, (req, res) => {
+  const { state } = req.body;
   const chatId = req.params.id;
   const db = getDb();
-  if (!db.prepare('SELECT * FROM clients WHERE client_id = ? AND secret = ? AND chat_id = ?').get(clientId, clientSecret, chatId)) return res.status(401).json({ error: 'Invalid credentials' });
   if (!state || typeof state !== 'object' || Array.isArray(state)) return res.status(400).json({ error: 'State must be an object' });
   const prev = getState(chatId);
   const merged = mergeState(prev, sanitizeStateEvents(state));
@@ -217,11 +210,10 @@ app.post('/api/chat/:id/state', (req, res) => {
 });
 
 // Загрузка фотографии (base64 JPEG, уже обработанной на клиенте: ресайз + EXIF-ориентация)
-app.post('/api/chat/:id/photo', (req, res) => {
-  const { clientId, clientSecret, data, desc } = req.body;
+app.post('/api/chat/:id/photo', requireClient, (req, res) => {
+  const { data, desc } = req.body;
   const chatId = req.params.id;
   const db = getDb();
-  if (!db.prepare('SELECT * FROM clients WHERE client_id = ? AND secret = ? AND chat_id = ?').get(clientId, clientSecret, chatId)) return res.status(401).json({ error: 'Invalid credentials' });
   if (typeof data !== 'string' || !data) return res.status(400).json({ error: 'data required' });
   const id = uuid().slice(0, 8);
   try {
@@ -251,7 +243,7 @@ app.post('/api/chat/:id/photo', (req, res) => {
 });
 
 // Отдача медиа (фото/видео) и превью: /api/photo/<chatId>/<id>[?th=1]
-app.get('/api/photo/:chatId/:id', (req, res) => {
+app.get('/api/photo/:chatId/:id', requireClient, (req, res) => {
   const m = readMedia(req.params.chatId, req.params.id, req.query.th === '1');
   if (!m) return res.status(404).json({ error: 'not found' });
   res.set('Content-Type', m.mime);
@@ -261,14 +253,8 @@ app.get('/api/photo/:chatId/:id', (req, res) => {
 
 // Загрузка медиа бинарём: файл сразу ставится в ОЧЕРЕДЬ обработки (ответ мгновенный),
 // конвертация/сохранение идут в фоне последовательно; прогресс — WS '/media-queue'.
-app.post('/api/chat/:id/media', (req, res) => {
+app.post('/api/chat/:id/media', requireClient, (req, res) => {
   const chatId = req.params.id;
-  const clientId = String(req.query.clientId || '');
-  const clientSecret = String(req.query.clientSecret || '');
-  const db = getDb();
-  if (!db.prepare('SELECT * FROM clients WHERE client_id = ? AND secret = ? AND chat_id = ?').get(clientId, clientSecret, chatId)) {
-    return res.status(401).json({ error: 'Invalid credentials' });
-  }
   const kind: 'photo' | 'video' = String(req.headers['x-kind'] || 'photo') === 'video' ? 'video' : 'photo';
   let fileName = String(req.headers['x-file-name'] || (kind === 'video' ? 'video.mp4' : 'photo.jpg'));
   try { fileName = decodeURIComponent(fileName); } catch { /* ок */ }
@@ -308,12 +294,8 @@ app.post('/api/chat/:id/media', (req, res) => {
 });
 
 // Текущая очередь обработки (для восстановления UI после перезагрузки страницы)
-app.get('/api/chat/:id/media-queue', (req, res) => {
+app.get('/api/chat/:id/media-queue', requireClient, (req, res) => {
   const chatId = req.params.id;
-  const db = getDb();
-  if (!db.prepare('SELECT * FROM clients WHERE client_id = ? AND secret = ? AND chat_id = ?').get(String(req.query.clientId || ''), String(req.query.clientSecret || ''), chatId)) {
-    return res.status(401).json({ error: 'Invalid credentials' });
-  }
   res.json({ items: queueFor(chatId) });
 });
 

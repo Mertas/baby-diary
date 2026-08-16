@@ -472,6 +472,11 @@ const SEC = localStorage.getItem('pui2_secret_' + CHAT_ID) || '';
 let S: any = {};
 let dashPeriod = 0; // 0 = сегодня, 3 = за 3 дня, 7 = за 7 дней
 
+/** URL медиа с креденшелами (media-эндпоинт защищён, <img>/<video> шлют только query). */
+function phUrl(id: string, thumb = false): string {
+  return '/api/photo/' + CHAT_ID + '/' + id + (thumb ? '?th=1&' : '?') + 'clientId=' + encodeURIComponent(CID) + '&clientSecret=' + encodeURIComponent(SEC);
+}
+
 function todayRef(): number {
   // «Сегодня» = день мамы (последняя дата из её сообщений), иначе реальная дата
   if (S.lastMomDay) { const d = new Date(S.lastMomDay + 'T00:00:00'); if (!isNaN(d.getTime())) return d.getTime(); }
@@ -611,7 +616,7 @@ function renderAll() {
   // Аватарка: показываем, если задана
   const avEl = $('#av') as HTMLImageElement;
   if (avEl) {
-    if (S.avatar) { avEl.src = '/api/photo/' + CHAT_ID + '/' + S.avatar + '?th=1'; avEl.classList.add('on'); }
+    if (S.avatar) { avEl.src = phUrl(S.avatar, true); avEl.classList.add('on'); }
     else avEl.classList.remove('on');
   }
   if (mt) {
@@ -1224,7 +1229,7 @@ function photoFullscreen(p: any, nav?: any[]) {
   const ov = el('div', { class: 'fs-view' });
   const stage = el('div', { class: 'fs-stage' });
   const isVideo = p.type === 'video';
-  const src = '/api/photo/' + CHAT_ID + '/' + p.id;
+  const src = phUrl(p.id);
   // Видео — native controls (autoplay), без зума/драга; фото — как раньше
   const media = isVideo
     ? (el('video', { class: 'fs-video', src, controls: '', autoplay: '', playsinline: '' }) as HTMLVideoElement)
@@ -1339,7 +1344,7 @@ function photoModal(p: any) {
   document.querySelectorAll('.modal-overlay').forEach((x) => x.remove());
   let desc = String(p.desc || '');
   modal('Фото', (b) => {
-    append(b, el('img', { class: 'gal-preview', src: '/api/photo/' + CHAT_ID + '/' + p.id }));
+    append(b, el('img', { class: 'gal-preview', src: phUrl(p.id) }));
     const ex = p.exif;
     if (ex && (ex.taken || ex.gps)) {
       const parts: string[] = [];
@@ -1482,13 +1487,13 @@ function renderPhotos() {
     const item = el('div', { class: 'gal-item' });
     if (p.type === 'video') {
       // Видео-карточка: постер-превью + иконка ▶; при наведении играется (muted, аля ютьюб)
-      const v = el('video', { class: 'gal-video', src: '/api/photo/' + CHAT_ID + '/' + p.id, poster: '/api/photo/' + CHAT_ID + '/' + p.id + '?th=1', muted: true, playsinline: '', preload: 'metadata' }) as HTMLVideoElement;
+      const v = el('video', { class: 'gal-video', src: phUrl(p.id), poster: phUrl(p.id, true), muted: true, playsinline: '', preload: 'metadata' }) as HTMLVideoElement;
       v.addEventListener('mouseenter', () => { v.play().catch(() => { /* ок */ }); });
       v.addEventListener('mouseleave', () => { v.pause(); v.currentTime = 0; });
       append(item, v);
       append(item, el('div', { class: 'gal-video-ico' }, '▶'));
     } else {
-      append(item, el('img', { src: '/api/photo/' + CHAT_ID + '/' + p.id + '?th=1', alt: p.desc || '', loading: 'lazy', decoding: 'async' }));
+      append(item, el('img', { src: phUrl(p.id, true), alt: p.desc || '', loading: 'lazy', decoding: 'async' }));
     }
     const del = el('button', { class: 'gal-del', title: 'Удалить' }, '✕');
     del.addEventListener('click', (evt: Event) => {
@@ -1570,7 +1575,7 @@ function weatherCard(): HTMLElement | null {
   const cached = weatherCache && weatherCache.city === city && Date.now() - weatherCache.ts < 15 * 60 * 1000 ? weatherCache.data : null;
   if (cached) { apply(cached); return card; }
   append(body, el('div', { class: 'w-load' }, 'Загружаю погоду…'));
-  fetch('/api/weather?city=' + encodeURIComponent(city))
+  fetch('/api/weather?city=' + encodeURIComponent(city) + '&clientId=' + encodeURIComponent(CID) + '&clientSecret=' + encodeURIComponent(SEC))
     .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then((w) => { weatherCache = { city, ts: Date.now(), data: w }; apply(w); })
     .catch(() => { clear(body); append(body, el('div', { class: 'w-load' }, 'Не удалось загрузить погоду для «' + city + '».')); });
@@ -2531,7 +2536,7 @@ function dayPhotosMap(): Map<string, any[]> {
 
 /** Медиа-подложка календаря: фото — превью, видео — постер (первый кадр) + иконка ▶ */
 function calMediaEl(p: any): HTMLElement {
-  const src = '/api/photo/' + CHAT_ID + '/' + p.id;
+  const src = phUrl(p.id);
   if (p.type === 'video') {
     const w = el('span', { class: 'cal-phwrap-inner' });
     append(w, el('video', { class: 'cal-ph', src, poster: src + '?th=1', muted: true, playsinline: '', preload: 'metadata' }));
@@ -2550,7 +2555,7 @@ function attachCalPhotoZones(host: HTMLElement, ph: HTMLElement, dayPhotos: any[
     if (r.width <= 0) return;
     const zone = Math.min(dayPhotos.length - 1, Math.floor(((e.clientX - r.left) / r.width) * dayPhotos.length));
     const next = dayPhotos[zone];
-    const target = '/api/photo/' + CHAT_ID + '/' + next.id;
+    const target = phUrl(next.id);
     if ((ph as any).getAttribute('src') !== target) (ph as any).src = target;
   });
 }
@@ -2652,13 +2657,13 @@ function renderCalDay(c: HTMLElement) {
       const tip = (tm ? '🕐 ' + tm[4] + ':' + tm[5] : '') + (p.duration ? ' · ⏱ ' + fmtDur(p.duration) : '') + (p.desc ? ' — ' + p.desc : '') || 'Фото';
       const t = el('div', { class: 'cal-dgal-item' + (p.type === 'video' ? ' vid' : ''), 'data-tip': tip });
       if (p.type === 'video') {
-        const v = el('video', { class: 'cal-dgal-video', src: '/api/photo/' + CHAT_ID + '/' + p.id, poster: '/api/photo/' + CHAT_ID + '/' + p.id + '?th=1', muted: true, playsinline: '', preload: 'metadata' }) as HTMLVideoElement;
+        const v = el('video', { class: 'cal-dgal-video', src: phUrl(p.id), poster: phUrl(p.id, true), muted: true, playsinline: '', preload: 'metadata' }) as HTMLVideoElement;
         v.addEventListener('mouseenter', () => { v.play().catch(() => { /* ок */ }); });
         v.addEventListener('mouseleave', () => { v.pause(); v.currentTime = 0; });
         append(t, v);
         append(t, el('span', { class: 'cal-video-ico' }, '▶'));
       } else {
-        append(t, el('img', { src: '/api/photo/' + CHAT_ID + '/' + p.id + '?th=1', alt: p.desc || '', loading: 'lazy', decoding: 'async' }));
+        append(t, el('img', { src: phUrl(p.id, true), alt: p.desc || '', loading: 'lazy', decoding: 'async' }));
       }
       t.addEventListener('click', () => photoFullscreen(p, dayPhotos));
       append(gal, t);
