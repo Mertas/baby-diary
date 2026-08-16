@@ -1,6 +1,7 @@
 // calendar.ts — календарь (месяц/неделя/день), плашки-напоминания, повторяющиеся события.
 // Вынесен из diary-ui.ts: блок самодостаточен и не зависит от вкладок/галереи/чата.
-import { el, append, clear, $, S, saveState, modal, phUrl, todayRef, photoFullscreen, fmtDur, iso, DAY_MS, fmtDay, WD } from './diary-ui.js';
+import { el, append, clear, $, S, saveState, modal, phUrl, todayRef, iso, DAY_MS, fmtDay, WD } from './diary-ui.js';
+import { photoFullscreen, fmtDur } from './gallery.js';
 
 const WD_FULL = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
 const MONTHS = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
