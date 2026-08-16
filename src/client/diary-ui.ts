@@ -1,10 +1,11 @@
 // diary-ui.ts — Baby Diary, Hermès-style
 export {}; // внешний модуль (для typecheck: изолированный скоуп, общение через window.PromptUI)
+import { el, $, $$, on, append, clear, CHAT_ID, CID, SEC, S, setS, phUrl, todayRef, modal } from './core.js';
+// Реэкспорт общих имён для модулей, которые ещё импортируют их из diary-ui
+export { el, $, $$, on, append, clear, CHAT_ID, CID, SEC, S, setS, phUrl, todayRef, modal } from './core.js';
 import { renderCalendar } from './calendar.js';
 import { renderPhotos, setupAvatar, renderMediaPanel, setMediaQueue, mediaQueueItems, mediaQueueListener } from './gallery.js';
 import { renderMode, renderDash, renderSkills, renderTips, renderRecipes, renderSpurts, renderClothes, renderSad, renderShopping, renderStock, renderLlmn, renderFamily, renderBudget, renderDynTabs, setupTabs, setupActions } from './tabs.js';
-import type { BabyState } from '../shared/types.js';
-export const { el, $, $$, on, append, clear } = window.PromptUI;
 
 window.PromptUI.ui.set(`
 <style>
@@ -473,21 +474,8 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 window.PromptUI.ui.activateScripts(document.body);
 
 // ===== State =====
-export const CHAT_ID = window.__CHAT_ID__;
-export const CID = localStorage.getItem('pui2_clientId_' + CHAT_ID) || '';
-export const SEC = localStorage.getItem('pui2_secret_' + CHAT_ID) || '';
-export let S: BabyState = {};
 /** URL медиа — без креденшелов в query: HttpOnly-кука bd ставится сервером при первом
  *  аутентифицированном запросе (loadState), <img>/<video> ходят по ней. */
-export function phUrl(id: string, thumb = false): string {
-  return '/api/photo/' + CHAT_ID + '/' + id + (thumb ? '?th=1' : '');
-}
-
-export function todayRef(): number {
-  // «Сегодня» = день мамы (последняя дата из её сообщений), иначе реальная дата
-  if (S.lastMomDay) { const d = new Date(S.lastMomDay + 'T00:00:00'); if (!isNaN(d.getTime())) return d.getTime(); }
-  return Date.now();
-}
 export function ageStr(bd?: string): string {
   if (!bd) return '';
   const d = Math.floor((todayRef() - new Date(bd).getTime()) / 86400000);
@@ -578,12 +566,12 @@ function cacheState(): void {
 export function loadState(): Promise<void> {
   return fetch('/api/chat/' + CHAT_ID + '/state?clientId=' + encodeURIComponent(CID) + '&clientSecret=' + encodeURIComponent(SEC))
     .then(r => r.json())
-    .then(st => { S = st || {}; cacheState(); renderAll(); })
+    .then(st => { setS(st || {}); cacheState(); renderAll(); })
     .catch(() => {
       // Офлайн/сервер недоступен: показываем последний известный срез (офлайн-чтение)
       try {
         const cached = localStorage.getItem(STATE_CACHE_KEY());
-        if (cached) { S = JSON.parse(cached) || {}; renderAll(); }
+        if (cached) { setS(JSON.parse(cached) || {}); renderAll(); }
       } catch { /* нет кэша */ }
     });
 }
@@ -601,7 +589,7 @@ export function saveState(partial: any): Promise<any> {
       throw new Error('HTTP ' + r.status);
     }
     return r.json();
-  }).then(st => { S = st || {}; cacheState(); renderAll(); return st; }).catch(() => {});
+  }).then(st => { setS(st || {}); cacheState(); renderAll(); return st; }).catch(() => {});
 }
 
 let lastTabsKey = '';
@@ -741,22 +729,6 @@ document.addEventListener('mouseout', (ev) => {
   }
 });
 
-export function modal(title: string, bodyFn: (b: HTMLElement) => void, onSave: () => void, noSave?: boolean) {
-  const ov = el('div', { class: 'modal-overlay' }), md = el('div', { class: 'modal' }), bd = el('div', {});
-  const ac = el('div', { class: 'modal-actions' }, el('button', { class: 'cancel' }, 'Отмена'), el('button', { class: 'save' }, 'Сохранить'));
-  append(md, el('h3', {}, title), bd, ac); append(ov, md); append(document.body, ov);
-  bodyFn(bd);
-  if (noSave) (ac.querySelector('.save') as HTMLElement | null)!.style.display = 'none';
-  const close = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
-  const onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') close();
-    if (e.key === 'Enter') { const s = ac.querySelector('.save'); if (s && (s as HTMLElement).style.display !== 'none') (s as HTMLElement).click(); }
-  };
-  document.addEventListener('keydown', onKey);
-  ac.querySelector('.save')!.addEventListener('click', () => { onSave(); close(); });
-  ac.querySelector('.cancel')!.addEventListener('click', close);
-  ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
-}
 function setupChat() {
   const me = $('#cm'), inp = $('#ci') as HTMLTextAreaElement, sb = $('#csd') as HTMLButtonElement;
   if (!me || !inp || !sb) return;
@@ -921,12 +893,12 @@ fetch('/api/chat/' + CHAT_ID + '/media-queue?clientId=' + CID + '&clientSecret='
   .then((d) => { if (d && Array.isArray(d.items)) { setMediaQueue(d.items); renderMediaPanel(); } })
   .catch(() => { /* ок */ });
 window.__runtime_subscribe('/chat/state', (raw: string) => {
-  try { const d = JSON.parse(raw); if (d.type === 'state' && d.state) { S = d.state; renderAll(); checkNotifications(); } } catch { /* ignore */ }
+  try { const d = JSON.parse(raw); if (d.type === 'state' && d.state) { setS(d.state); renderAll(); checkNotifications(); } } catch { /* ignore */ }
 });
 
 // ─── Локальные уведомления: reminders/calendar → Notification API (пока приложение открыто) ───
 const NOTIF_KEY = 'bd_notified';
-let notifShown: Set<string> = new Set(JSON.parse(localStorage.getItem(NOTIF_KEY) || '[]'));
+const notifShown: Set<string> = new Set(JSON.parse(localStorage.getItem(NOTIF_KEY) || '[]'));
 function checkNotifications(): void {
   if (!('Notification' in window)) return;
   if (Notification.permission === 'default') { Notification.requestPermission().catch(() => {}); return; }

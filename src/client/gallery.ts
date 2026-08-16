@@ -1,6 +1,7 @@
 // gallery.ts — галерея фото/видео: EXIF, ресайз, загрузка с очередью обработки,
 // полноэкранный просмотр, аватарка, виджет погоды. Вынесен из diary-ui.ts.
-import { el, append, clear, $, S, saveState, loadState, modal, phUrl, CHAT_ID, CID, SEC } from './diary-ui.js';
+import { el, append, clear, $, S, modal, phUrl, CHAT_ID, CID, SEC } from './core.js';
+import { saveState, loadState } from './diary-ui.js';
 
 // --- Фото: EXIF + обработка перед загрузкой ---
 /** Данные из EXIF: ориентация (0x0112), дата съёмки (0x9003 в ExifIFD), GPS (IFD GPSInfo). */

@@ -2,7 +2,8 @@
 // покупки/запасы/семья/бюджет/помощник/динамические), быстрые записи (кормление/сон/пробуждение/событие/замер).
 // Вынесен из diary-ui.ts; общается с ядром через импорты (круговой импорт безопасен — на top-level
 // импортированные значения не используются).
-import { el, append, clear, $, $$, S, saveState, modal, todayRef, ageStr, ageMonths, fmtTime, dayKey, dayTitle, iso, fmtDay, WD, DAY_MS, durStr, timeField, tsFromTime, askChat } from './diary-ui.js';
+import { el, append, clear, $, $$, S, modal, todayRef } from './core.js';
+import { saveState, ageStr, ageMonths, fmtTime, dayKey, dayTitle, iso, fmtDay, WD, DAY_MS, durStr, timeField, tsFromTime, askChat } from './diary-ui.js';
 import { renderBanners } from './calendar.js';
 import { weatherCard } from './gallery.js';
 
