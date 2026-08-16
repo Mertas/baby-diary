@@ -777,7 +777,11 @@ function showFeed() {
     }
     sync();
     append(b, btns, qty, pres, tf);
-  }, () => { saveState({ feeds: [{ type: ty, amount: am, timestamp: tsFromTime(tf.value) }] }); });
+  }, () => {
+    const ts = Math.floor(tsFromTime(tf.value) / 60000) * 60000; // как на сервере
+    quickSave('Кормление записано', { feeds: [{ type: ty, amount: am, timestamp: ts }] },
+      { feeds: [{ type: ty, amount: am, timestamp: ts, _delete: true }] });
+  });
 }
 function showSleep() {
   let t = 'nap';
@@ -796,16 +800,22 @@ function showSleep() {
     if (open) {
       append(b, el('div', { class: 'notice', style: 'padding:10px 14px' }, 'Есть незакрытый сон с ' + fmtTime(open.timestamp) + ' — нажмите «Пробуждение», чтобы закрыть его, и длительность посчитается сама.'));
     }
-  }, () => { saveState({ sleeps: [{ type: t, timestamp: tsFromTime(tf.value) }] }); });
+  }, () => {
+    const ts = Math.floor(tsFromTime(tf.value) / 60000) * 60000;
+    quickSave('Сон записан', { sleeps: [{ type: t, timestamp: ts }] },
+      { sleeps: [{ type: t, timestamp: ts, _delete: true }] });
+  });
 }
 function showWake() {
   // Закрываем последний незакрытый сон (длительность = до пробуждения)
   const sleeps = (S.sleeps || []).slice();
   const last = [...sleeps].reverse().find((s: any) => !s.end);
   if (last) last.end = Date.now();
-  saveState({ sleeps, events: [{ title: 'Пробуждение', timestamp: Date.now() }] });
+  const now = Date.now();
+  quickSave('Пробуждение записано', { sleeps, events: [{ title: 'Пробуждение', timestamp: now }] },
+    { events: [{ title: 'Пробуждение', timestamp: Math.floor(now / 60000) * 60000, _delete: true }] });
 }
-function showEvent() { let ti = '', nt = ''; const tf = timeField(); modal('Событие', (b) => { const t = el('input', { class: 'modal-inp', placeholder: 'Название' }); t.addEventListener('input', () => { ti = (t as HTMLInputElement).value; }); const n = el('input', { class: 'modal-inp', placeholder: 'Заметки' }); n.addEventListener('input', () => { nt = (n as HTMLInputElement).value; }); append(b, tf, t, n); }, () => { saveState({ events: [{ title: ti || 'Событие', note: nt, timestamp: tsFromTime(tf.value) }] }); }); }
+function showEvent() { let ti = '', nt = ''; const tf = timeField(); modal('Событие', (b) => { const t = el('input', { class: 'modal-inp', placeholder: 'Название' }); t.addEventListener('input', () => { ti = (t as HTMLInputElement).value; }); const n = el('input', { class: 'modal-inp', placeholder: 'Заметки' }); n.addEventListener('input', () => { nt = (n as HTMLInputElement).value; }); append(b, tf, t, n); }, () => { const ts = Math.floor(tsFromTime(tf.value) / 60000) * 60000; quickSave('Событие записано', { events: [{ title: ti || 'Событие', note: nt, timestamp: ts }] }, { events: [{ title: ti || 'Событие', note: nt, timestamp: ts, _delete: true }] }); }); }
 function showMeasure() {
   let w = '', h = '';
   const tf = timeField();
@@ -818,9 +828,30 @@ function showMeasure() {
   }, () => {
     const note = [w ? w + ' г' : '', h ? h + ' см' : ''].filter(Boolean).join(' · ');
     if (!note) return;
-    const upd: any = { events: [{ title: 'Замер', note, timestamp: tsFromTime(tf.value) }] };
+    const ts = Math.floor(tsFromTime(tf.value) / 60000) * 60000;
+    const upd: any = { events: [{ title: 'Замер', note, timestamp: ts }] };
     if (w) upd.weight = Math.round(parseFloat(w));
     if (h) upd.height = Math.round(parseFloat(h) * 10) / 10;
-    saveState(upd);
+    quickSave('Замер записан', upd, { events: [{ title: 'Замер', note, timestamp: ts, _delete: true }] });
   });
+}
+
+// ─── Toast «Записано ✓ [Отменить]»: быстрая запись не должна быть необратимой ───
+let undoToastT: ReturnType<typeof setTimeout> | null = null;
+function quickSave(label: string, partial: any, deletePartial: any): void {
+  saveState(partial).then(() => showUndoToast(label, deletePartial)).catch(() => {});
+}
+function showUndoToast(label: string, deletePartial: any): void {
+  document.querySelectorAll('.undo-toast').forEach((x) => x.remove());
+  const t = el('div', { class: 'undo-toast', style: 'position:fixed;left:50%;bottom:84px;transform:translateX(-50%);z-index:9999;background:#211d18;color:#fff;border-radius:8px;padding:10px 14px;font:12px/1.4 system-ui,sans-serif;display:flex;align-items:center;gap:10px;box-shadow:0 4px 16px rgba(0,0,0,.25);max-width:92vw' });
+  append(t, el('span', {}, '✓ ' + label));
+  const undoBtn = el('button', { style: 'background:#e8622a;border:none;border-radius:5px;color:#fff;padding:5px 12px;cursor:pointer;font:600 11px/1 system-ui,sans-serif' }, 'Отменить');
+  undoBtn.addEventListener('click', () => {
+    saveState(deletePartial).catch(() => {});
+    t.remove();
+  });
+  append(t, undoBtn);
+  append(document.body, t);
+  if (undoToastT) clearTimeout(undoToastT);
+  undoToastT = setTimeout(() => t.remove(), 6000);
 }

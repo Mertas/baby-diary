@@ -99,7 +99,9 @@ function sanitizeCalendar(items: unknown): unknown[] {
       if (iso) {
         o.date = `${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}`;
       } else if (dayShift[d]) {
-        o.date = new Date(today.getTime() + dayShift[d] * 86400000).toISOString().slice(0, 10);
+        // Локальная дата (не toISOString — тот даёт UTC и сдвигает день вперёд/назад по таймзоне)
+        const shifted = new Date(today.getTime() + dayShift[d] * 86400000);
+        o.date = shifted.getFullYear() + '-' + String(shifted.getMonth() + 1).padStart(2, '0') + '-' + String(shifted.getDate()).padStart(2, '0');
       }
       // иначе (день недели, «до конца недели») — оставляем строку, пусть LLM уточнит дату при следующем ходе
     }

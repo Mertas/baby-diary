@@ -79,10 +79,12 @@ function buildMessageHistory(chatId: string): Array<{ role: 'system' | 'user' | 
       '\n\nЕсли какие-то разделы пустые или незаполненные — предложи их заполнить. Все новые данные передавай в state.';
   } catch { /* state unavailable */ }
 
-  // Current date — so the baby's age is counted from the real "today", not a made-up one
+  // Current date — so the baby's age is counted from the real "today", not a made-up one.
+  // ЛОКАЛЬНАЯ дата сервера (не UTC): toISOString сдвигал «сегодня» на день вперёд для UTC+часовых поясов
   const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
   const weekday = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'][now.getDay()];
-  systemPrompt += '\n\n# ТЕКУЩАЯ ДАТА\nСегодня ' + now.toISOString().slice(0, 10) + ' (' + weekday + '). Возраст ребёнка всегда вычисляй от birthDate относительно этой даты. Не угадывай текущую дату — она указана здесь.';
+  systemPrompt += '\n\n# ТЕКУЩАЯ ДАТА\nСегодня ' + now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate()) + ' (' + weekday + '). Возраст ребёнка всегда вычисляй от birthDate относительно этой даты. Не угадывай текущую дату — она указана здесь.';
 
   // Собственный дополнительный промпт ассистента: заметки, которые LLM сама решила помнить
   try {
