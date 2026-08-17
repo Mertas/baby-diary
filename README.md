@@ -15,6 +15,10 @@ npm run dev          # сборка клиента + tsx watch сервера
 
 Требования: Node 20.x, [ffmpeg](https://ffmpeg.org) в PATH (конвертация MOV→MP4 и превью; фото работают и без него).
 
+**Модели LLM.** В шапке чата — выпадающий селект модели (как в современных чатах). DeepSeek работает всегда; бесплатные модели появляются в списке, если добавить ключи в `.env`:
+- [OpenRouter](https://openrouter.ai) — бесплатный ключ, модели с `:free` бесплатны (Llama 3.3 70B, Qwen 2.5 72B, DeepSeek V3 и др.) → `OPENROUTER_API_KEY=...`
+- [Groq](https://console.groq.com) — бесплатный тариф (Llama 3.3 70B, Qwen 2.5 32B) → `GROQ_API_KEY=...`
+
 > ⚠️ **Версия Node зафиксирована на 20.x** (см. `.nvmrc`, `engines` в `package.json`). `better-sqlite3` — нативный модуль, собранный под конкретный ABI (Node 20 → `NODE_MODULE_VERSION 115`). Если в системе несколько Node (nvm) и при установке/запуске используются разные — будет ошибка `NODE_MODULE_VERSION`. Перед `dev`/`start` запускается `scripts/check-node.cjs`, который прерывает запуск с подсказкой. При смене версии Node:
 > ```bash
 > nvm use 20.19.5
