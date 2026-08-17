@@ -5,6 +5,7 @@ import http from 'http';
 import { WebSocketServer } from 'ws';
 import { getDb } from '../db/index.js';
 import { DEEPSEEK_MODEL, DEEPSEEK_FLASH_MODEL } from './config.js';
+import { isModelAllowed, getAvailableModels, defaultModel } from './models.js';
 import { setupWebSocket, broadcast, setReplayHandler } from './ws.js';
 import { handlePrompt, stopGeneration, isProcessing } from './llm.js';
 import { getState, saveState, mergeState, sanitizeStateEvents } from './state.js';
@@ -97,6 +98,12 @@ app.get('/api/chats', (_req, res) => {
   })));
 });
 
+// Список доступных моделей для селекта в чате (зависит от ключей в .env).
+// Открытый endpoint: имена моделей не персональны (как weather).
+app.get('/api/models', (_req, res) => {
+  res.json({ models: getAvailableModels(), default: defaultModel() });
+});
+
 app.post('/api/chats', (req, res) => {
   const db = getDb();
   // Быстрый старт: имя малыша сразу становится названием дневника (иначе в списке одни «Baby Diary»)
@@ -116,9 +123,8 @@ app.post('/chat/:id/prompt', (req, res) => {
   if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) return res.status(400).json({ error: 'Empty prompt' });
   if (!checkClient(req, chatId)) return res.status(401).json({ error: 'Invalid credentials' });
   if (isProcessing(chatId)) return res.status(429).json({ error: 'Already processing' });
-  // Модель — только из белого списка (клиент не должен слать произвольную строку)
-  const allowedModels = new Set(['deepseek-chat', 'deepseek-v4-pro', 'deepseek-v4-flash', DEEPSEEK_MODEL, DEEPSEEK_FLASH_MODEL]);
-  const safeModel = typeof model === 'string' && allowedModels.has(model) ? model : undefined;
+  // Модель — только из доступного списка (клиент не должен слать произвольную строку)
+  const safeModel = typeof model === 'string' && isModelAllowed(model) ? model : undefined;
   res.json({ status: 'processing' });
 
   handlePrompt(chatId, prompt, safeModel, (type, data) => {

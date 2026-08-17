@@ -165,12 +165,24 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 
 .chat-panel { border-top: 1px solid var(--border); flex-shrink: 0; display: flex; flex-direction: column; max-height: 38vh; background: var(--surface); }
 .chat-panel.collapsed .chat-msgs, .chat-panel.collapsed .chat-bar { display: none; }
-.model-row { display: flex; gap: 14px; padding: 6px 16px 0; }
-.model-row button { padding: 0; border: none; background: none; cursor: pointer; font-size: 10px; font-family: var(--sans); letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-soft); }
-.model-row button.active { color: var(--accent); }
-.model-row .undo { margin-left: auto; letter-spacing: 0; font-size: 13px; }
+.model-row { display: flex; align-items: center; gap: 12px; padding: 6px 16px 0; position: relative; }
+.model-sel { position: relative; }
+.ms-btn { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); cursor: pointer; font-size: 11px; font-family: var(--sans); color: var(--text); transition: border-color .2s, color .2s; }
+.ms-btn:hover { border-color: var(--accent); color: var(--accent); }
+.ms-btn .free-badge { background: #e7f4e9; color: #2e7d32; font-size: 8px; padding: 1px 5px; border-radius: 8px; letter-spacing: .06em; text-transform: uppercase; font-weight: 700; }
+.ms-btn .caret { font-size: 8px; color: var(--text-soft); }
+.ms-panel { position: absolute; bottom: calc(100% + 8px); left: 0; min-width: 270px; max-width: 330px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 14px 36px rgba(0,0,0,.16); padding: 6px; z-index: 60; display: none; max-height: 320px; overflow-y: auto; }
+.ms-panel.open { display: block; }
+.ms-group { font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--text-soft); padding: 8px 10px 4px; }
+.ms-item { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 8px 10px; border: none; background: none; border-radius: 8px; cursor: pointer; font-size: 12px; color: var(--text); font-family: var(--sans); }
+.ms-item:hover { background: var(--accent-soft); color: var(--accent-dark); }
+.ms-item.sel { color: var(--accent); font-weight: 600; }
+.ms-item .ms-free { font-size: 9px; color: #2e7d32; background: #e7f4e9; border-radius: 8px; padding: 1px 6px; margin-left: auto; }
+.ms-item .ms-check { margin-left: auto; font-size: 12px; visibility: hidden; }
+.ms-item.sel .ms-check { visibility: visible; }
+.model-row .undo { margin-left: auto; padding: 0; border: none; background: none; cursor: pointer; font-size: 13px; font-family: var(--sans); color: var(--text-soft); }
 .model-row .undo:hover, .model-row .collapse:hover { color: var(--accent); }
-.model-row .collapse { letter-spacing: 0; font-size: 12px; }
+.model-row .collapse { padding: 0; border: none; background: none; cursor: pointer; font-size: 12px; font-family: var(--sans); color: var(--text-soft); }
 .chat-msgs { flex: 1; overflow-y: auto; padding: 10px 16px 8px; display: flex; flex-direction: column; gap: 6px; min-height: 44px; }
 .msg { max-width: 82%; padding: 8px 14px; border-radius: 2px; word-break: break-word; white-space: pre-wrap; font-size: 13px; line-height: 1.5; }
 .msg-user { align-self: flex-end; background: var(--accent); color: #fff; }
@@ -465,7 +477,11 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
   <div id="c-dyn"></div>
   <div class="content" id="c-calendar"></div>
   <div class="chat-panel">
-    <div class="model-row"><button id="mp">Pro</button><button id="mf" class="active">Flash</button><button id="cc" class="collapse" title="Свернуть чат">▾</button><button id="cud" class="undo" title="Отменить последний ответ">↶</button></div>
+    <div class="model-row">
+      <div class="model-sel" id="msel"><button id="ms-btn" class="ms-btn" title="Выбрать модель">…</button><div class="ms-panel" id="ms-panel"></div></div>
+      <button id="cc" class="collapse" title="Свернуть чат">▾</button>
+      <button id="cud" class="undo" title="Отменить последний ответ">↶</button>
+    </div>
     <div class="chat-msgs" id="cm"></div>
     <div class="chat-bar"><textarea id="ci" placeholder="Написать..." rows="1"></textarea><button class="send" id="csd">▶</button></div>
   </div>
@@ -806,13 +822,48 @@ function setupChat() {
   window.PromptUI.messages.on('add', () => { if (dt) { dt.remove(); dt = null; } });
   if (window.PromptUI.messages.thinking) { dt = el('div', { class: 'msg msg-thinking' }, '...'); append(me, dt); sc(); }
 
-  let mdl = 'deepseek-chat';
-  const mp = $('#mp'), mf = $('#mf');
-  if (mp && mf) {
-    const setMd = (m: string) => { mdl = m; mp.classList.toggle('active', m === 'deepseek-v4-pro'); mf.classList.toggle('active', m !== 'deepseek-v4-pro'); };
-    mp.addEventListener('click', () => setMd('deepseek-v4-pro'));
-    mf.addEventListener('click', () => setMd('deepseek-v4-flash'));
+  // Селект модели — выпадающий список как в современных чатах (группы, бейдж FREE, галочка)
+  let mdl = localStorage.getItem('bd_model') || '';
+  const msBtn = $('#ms-btn'), msPanel = $('#ms-panel');
+  let modelList: { id: string; label: string; group: string; free?: boolean }[] = [];
+  const closeMsPanel = () => { if (msPanel) msPanel.classList.remove('open'); };
+  function renderModelSelect() {
+    if (!msBtn || !msPanel || !modelList.length) return;
+    const cur = modelList.find((m) => m.id === mdl) || modelList[0];
+    if (cur) {
+      msBtn.innerHTML = (cur.free ? '<span class="free-badge">FREE</span>' : '') + '<span>' + cur.label + '</span><span class="caret">▾</span>';
+    }
+    msPanel.innerHTML = '';
+    let lastGroup = '';
+    for (const m of modelList) {
+      if (m.group !== lastGroup) {
+        lastGroup = m.group;
+        append(msPanel, el('div', { class: 'ms-group' }, m.group));
+      }
+      const item = el('button', { class: 'ms-item' + (m.id === mdl ? ' sel' : '') },
+        el('span', {}, m.label),
+        m.free ? el('span', { class: 'ms-free' }, 'FREE') : null,
+        el('span', { class: 'ms-check' }, '✓'));
+      item.addEventListener('click', () => {
+        mdl = m.id;
+        localStorage.setItem('bd_model', m.id);
+        renderModelSelect();
+        closeMsPanel();
+      });
+      append(msPanel, item);
+    }
   }
+  if (msBtn) msBtn.addEventListener('click', (e) => { e.stopPropagation(); if (msPanel) msPanel.classList.toggle('open'); });
+  document.addEventListener('click', closeMsPanel);
+  fetch('/api/models')
+    .then((r) => r.json())
+    .then((d) => {
+      modelList = Array.isArray(d.models) ? d.models : [];
+      if (!modelList.length) return;
+      if (!mdl || !modelList.some((m) => m.id === mdl)) mdl = String(d.default || modelList[0].id);
+      renderModelSelect();
+    })
+    .catch(() => { /* моделей нет — селект остаётся «…» */ });
   const cu = $('#cud');
   if (cu) cu.addEventListener('click', () => { window.PromptUI.messages.undo(); });
   const cc = $('#cc');
