@@ -171,8 +171,9 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .ms-btn:hover { border-color: var(--accent); color: var(--accent); }
 .ms-btn .free-badge { background: #e7f4e9; color: #2e7d32; font-size: 8px; padding: 1px 5px; border-radius: 8px; letter-spacing: .06em; text-transform: uppercase; font-weight: 700; }
 .ms-btn .caret { font-size: 8px; color: var(--text-soft); }
-.ms-panel { position: absolute; bottom: calc(100% + 8px); left: 0; min-width: 270px; max-width: 330px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 14px 36px rgba(0,0,0,.16); padding: 6px; z-index: 60; display: none; max-height: 320px; overflow-y: auto; }
+.ms-panel { position: absolute; top: calc(100% + 8px); left: 0; min-width: 270px; max-width: 330px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 14px 36px rgba(0,0,0,.16); padding: 6px; z-index: 60; display: none; max-height: 320px; overflow-y: auto; }
 .ms-panel.open { display: block; }
+.ms-panel.up { top: auto; bottom: calc(100% + 8px); } /* авто-переворот, если внизу нет места */
 .ms-group { font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--text-soft); padding: 8px 10px 4px; }
 .ms-item { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 8px 10px; border: none; background: none; border-radius: 8px; cursor: pointer; font-size: 12px; color: var(--text); font-family: var(--sans); }
 .ms-item:hover { background: var(--accent-soft); color: var(--accent-dark); }
@@ -853,7 +854,16 @@ function setupChat() {
       append(msPanel, item);
     }
   }
-  if (msBtn) msBtn.addEventListener('click', (e) => { e.stopPropagation(); if (msPanel) msPanel.classList.toggle('open'); });
+  if (msBtn) msBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!msPanel) return;
+    msPanel.classList.toggle('open');
+    if (msPanel.classList.contains('open')) {
+      // Переворот: если панель не помещается вниз (чат прижат к низу на мобильных) — открыть вверх
+      const r = msPanel.getBoundingClientRect();
+      msPanel.classList.toggle('up', r.bottom > window.innerHeight);
+    }
+  });
   document.addEventListener('click', closeMsPanel);
   fetch('/api/models')
     .then((r) => r.json())
