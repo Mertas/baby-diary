@@ -567,10 +567,14 @@ export function setMediaQueue(items: any[]): void {
   mediaQueueItems = items;
 }
 
-/** Панель «⏳ Обработка N/M» в галерее (общий бар + список файлов со статусами). */
+/** Панель «⏳ Обработка N/M» в галерее (общий бар + список файлов со статусами).
+ *  Список прокручивается внутри (max-высота = карточка 3:4); при каждом перерендере
+ *  сохраняем позицию прокрутки, чтобы панель не «прыгала» сама. */
 export function renderMediaPanel() {
   const c = $('#c-photos'); if (!c) return;
-  const old = c.querySelector('.media-panel'); if (old) old.remove();
+  const old = c.querySelector('.media-panel');
+  const savedScroll = old ? old.querySelector('.mp-list')?.scrollTop ?? 0 : 0;
+  if (old) old.remove();
   if (!mediaQueueItems.length) return;
   const total = mediaQueueItems.length;
   const doneN = mediaQueueItems.filter((i) => i.status === 'done').length;
@@ -594,4 +598,9 @@ export function renderMediaPanel() {
   if (grid && grid.firstChild) grid.insertBefore(panel, grid.firstChild);
   else if (grid) grid.appendChild(panel);
   else append(c, panel);
+  // Восстановить позицию прокрутки (пересоздание панели не должно сбрасывать скролл)
+  if (savedScroll > 0) {
+    const nl = panel.querySelector('.mp-list');
+    if (nl) nl.scrollTop = savedScroll;
+  }
 }

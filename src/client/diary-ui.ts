@@ -5,7 +5,7 @@ import { el, $, $$, on, append, clear, CHAT_ID, CID, SEC, S, setS, phUrl, todayR
 export { el, $, $$, on, append, clear, CHAT_ID, CID, SEC, S, setS, phUrl, todayRef, modal } from './core.js';
 import { renderCalendar } from './calendar.js';
 import { renderPhotos, setupAvatar, renderMediaPanel, setMediaQueue, mediaQueueItems, mediaQueueListener } from './gallery.js';
-import { renderMode, renderDash, renderSkills, renderTips, renderRecipes, renderSpurts, renderClothes, renderSad, renderShopping, renderStock, renderLlmn, renderFamily, renderBudget, renderDynTabs, setupTabs, setupActions } from './tabs.js';
+import { renderMode, renderDash, renderSkills, renderTips, renderRecipes, renderSpurts, renderClothes, renderSad, renderShopping, renderStock, renderLlmn, renderSet, renderFamily, renderBudget, renderDynTabs, setupTabs, setupActions } from './tabs.js';
 
 window.PromptUI.ui.set(`
 <style>
@@ -181,6 +181,23 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .ms-item .ms-free { font-size: 9px; color: #2e7d32; background: #e7f4e9; border-radius: 8px; padding: 1px 6px; margin-left: auto; }
 .ms-item .ms-check { margin-left: auto; font-size: 12px; visibility: hidden; }
 .ms-item.sel .ms-check { visibility: visible; }
+/* Проверка работоспособности моделей */
+.ms-test { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 6px; }
+.ms-test-btn { width: 100%; border: 1px solid var(--border); background: none; border-radius: 8px; padding: 6px; font-size: 11.5px; cursor: pointer; color: var(--text); font-family: var(--sans); }
+.ms-test-btn:hover { border-color: var(--accent); color: var(--accent); }
+.ms-test-res { margin-top: 6px; max-height: 160px; overflow-y: auto; }
+.ms-test-sum { font-size: 11px; font-weight: 600; padding: 2px 4px 5px; }
+.ms-trow { display: flex; justify-content: space-between; gap: 8px; font-size: 10.5px; padding: 2px 4px; border-radius: 5px; }
+.ms-trow.ok { color: #2e7d32; }
+.ms-trow.err { color: #c0392b; }
+.ms-tname { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 190px; }
+/* Страница настроек */
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 18px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.set-lbl { display: flex; flex-direction: column; gap: 3px; }
+.set-title { font-size: 13.5px; font-weight: 600; }
+.set-sub { font-size: 11.5px; color: var(--text-dim); line-height: 1.4; }
+.set-row input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
+.set-info { padding: 12px 18px; font-size: 11.5px; color: var(--text-dim); line-height: 1.5; }
 .model-row .undo { margin-left: auto; padding: 0; border: none; background: none; cursor: pointer; font-size: 13px; font-family: var(--sans); color: var(--text-soft); }
 .model-row .undo:hover, .model-row .collapse:hover { color: var(--accent); }
 .model-row .collapse { padding: 0; border: none; background: none; cursor: pointer; font-size: 12px; font-family: var(--sans); color: var(--text-soft); }
@@ -275,11 +292,11 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
 .up-wrap { grid-column: 1 / -1; height: 10px; border-radius: 5px; background: rgba(0, 0, 0, 0.06); overflow: hidden; }
 .up-bar { height: 100%; width: 0%; border-radius: 5px; background: var(--accent); font-size: 9px; color: #fff; text-align: center; line-height: 10px; transition: width .1s ease; }
 /* Панель «⏳ Обработка N/M» — карточка как «Добавить фото» (одна колонка сетки, 3:4) */
-.media-panel { aspect-ratio: 3 / 4; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: var(--card, #fff); display: flex; flex-direction: column; min-width: 0; box-shadow: 0 1px 4px rgba(0, 0, 0, .08); }
-.media-panel .mp-title { font-size: 12px; font-weight: 600; margin-bottom: 6px; line-height: 1.35; }
+.media-panel { aspect-ratio: 3 / 4; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: var(--card, #fff); display: flex; flex-direction: column; min-width: 0; max-height: 420px; box-shadow: 0 1px 4px rgba(0, 0, 0, .08); }
+.media-panel .mp-title { font-size: 12px; font-weight: 600; margin-bottom: 6px; line-height: 1.35; flex: none; }
 .media-panel .mp-title.err { color: #c0392b; }
 .media-panel .up-wrap { flex: none; margin-bottom: 6px; height: 8px; }
-.media-panel .mp-list { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.media-panel .mp-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; scrollbar-width: thin; }
 .media-panel .mp-row { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--text-dim); line-height: 1.4; }
 .media-panel .mp-row.ok { color: var(--text); }
 .media-panel .mp-row.err { color: #c0392b; }
@@ -473,6 +490,7 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); heig
   <div class="content" id="c-shopping"></div>
   <div class="content" id="c-stock"></div>
   <div class="content" id="c-llmn"></div>
+  <div class="content" id="c-set"></div>
   <div class="content" id="c-family"></div>
   <div class="content" id="c-budget"></div>
   <div id="c-dyn"></div>
@@ -672,6 +690,7 @@ function renderAll() {
   renderShopping();
   renderStock();
   renderLlmn();
+  renderSet();
   renderFamily();
   renderBudget();
   renderDynTabs();
@@ -826,7 +845,7 @@ function setupChat() {
   // Селект модели — выпадающий список как в современных чатах (группы, бейдж FREE, галочка)
   let mdl = localStorage.getItem('bd_model') || '';
   const msBtn = $('#ms-btn'), msPanel = $('#ms-panel');
-  let modelList: { id: string; label: string; group: string; free?: boolean }[] = [];
+  let modelList: { id: string; label: string; group: string; free?: boolean; limits?: string }[] = [];
   const closeMsPanel = () => { if (msPanel) msPanel.classList.remove('open'); };
   function renderModelSelect() {
     if (!msBtn || !msPanel || !modelList.length) return;
@@ -845,6 +864,8 @@ function setupChat() {
         el('span', {}, m.label),
         m.free ? el('span', { class: 'ms-free' }, 'FREE') : null,
         el('span', { class: 'ms-check' }, '✓'));
+      // Подпись лимитов провайдера — tooltip при наведении
+      if (m.limits) item.title = m.limits;
       item.addEventListener('click', () => {
         mdl = m.id;
         localStorage.setItem('bd_model', m.id);
@@ -853,6 +874,33 @@ function setupChat() {
       });
       append(msPanel, item);
     }
+    // Кнопка проверки работоспособности + блок результатов
+    const testBtn = el('button', { class: 'ms-test-btn' }, '🔍 Проверить модели');
+    const testRes = el('div', { class: 'ms-test-res' });
+    let testing = false;
+    testBtn.addEventListener('click', () => {
+      if (testing) return;
+      testing = true;
+      testBtn.textContent = '⏳ Проверка…';
+      testRes.innerHTML = '';
+      fetch('/api/models/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ models: modelList.map((m) => m.id) }) })
+        .then((r) => r.json())
+        .then((d) => {
+          const results = Array.isArray(d.results) ? d.results : [];
+          const ok = results.filter((x: any) => x.ok).length;
+          testRes.innerHTML = '';
+          append(testRes, el('div', { class: 'ms-test-sum' }, '✓ ' + ok + ' · ✗ ' + (results.length - ok) + ' из ' + results.length));
+          for (const r of results) {
+            const label = (modelList.find((m) => m.id === r.id) || {} as any).label || r.id;
+            append(testRes, el('div', { class: 'ms-trow ' + (r.ok ? 'ok' : 'err') },
+              el('span', { class: 'ms-tname', title: label }, label),
+              el('span', {}, r.ok ? '✓ ' + r.ms + ' мс' : '✗ ' + (r.error || '').slice(0, 40))));
+          }
+        })
+        .catch(() => { testRes.innerHTML = ''; append(testRes, el('div', { class: 'ms-trow err' }, 'Ошибка сети')); })
+        .finally(() => { testing = false; testBtn.textContent = '🔍 Проверить модели'; });
+    });
+    append(msPanel, el('div', { class: 'ms-test' }, testBtn, testRes));
   }
   if (msBtn) msBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -865,6 +913,17 @@ function setupChat() {
     }
   });
   document.addEventListener('click', closeMsPanel);
+  // Сервер сообщает, какая модель реально ответила (после авто-фолбэка) — переключаем селект
+  window.__runtime_subscribe('/chat/model', (raw: string) => {
+    try {
+      const d = JSON.parse(raw);
+      if (d && typeof d.model === 'string' && modelList.some((m) => m.id === d.model) && d.model !== mdl) {
+        mdl = d.model;
+        localStorage.setItem('bd_model', d.model);
+        renderModelSelect();
+      }
+    } catch { /* ignore */ }
+  });
   fetch('/api/models')
     .then((r) => r.json())
     .then((d) => {
